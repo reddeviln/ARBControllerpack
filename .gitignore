@@ -3,3 +3,7 @@
 ################################################################################
 
 /.vs
+/Release
+/Debug
+/UAEControllerpack/Release
+/UAEControllerpack/Debug

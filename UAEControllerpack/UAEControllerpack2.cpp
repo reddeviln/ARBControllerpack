@@ -45,6 +45,7 @@ const int TAG_FUNC_CTOT_CLEAR = 86715123;
 const CTimeSpan taxitime = CTimeSpan(0, 0, 20, 0);
 const double TOL = 0.02;
 std::unordered_map<std::string, std::string> recatdict;
+std::unordered_map<std::string, std::string> parkingdict;
 std::string directory;
 std::unordered_map<std::string, std::unordered_map<std::string, Stand>> data;
 std::unordered_map<std::string, std::unordered_map<std::string, Stand>> standmapping;
@@ -136,13 +137,15 @@ CUAEController::CUAEController(void)
 
 	//1. RECAT dictionary
 	dir += "RECAT.csv";
-	io::CSVReader<2, io::trim_chars<' '>, io::no_quote_escape<','>> in(dir);
-	in.read_header(io::ignore_extra_column, "Aircraft", "RECAT");
-	std::string aircraft, recat;
-	while (in.read_row(aircraft, recat))
+	io::CSVReader<3, io::trim_chars<' '>, io::no_quote_escape<','>> in(dir);
+	in.read_header(io::ignore_extra_column, "Aircraft", "RECAT", "PARKING");
+	std::string aircraft, recat, parkingcode;
+	while (in.read_row(aircraft, recat, parkingcode))
 	{
 		std::pair<std::string, std::string> temp(aircraft, recat);
+		std::pair<std::string, std::string> tmp(aircraft, parkingcode);
 		recatdict.insert(temp);
+		parkingdict.insert(tmp);
 	}
 	LOG_F(INFO, "RECAT dictionary read without issues!");
 
@@ -2861,14 +2864,19 @@ char CUAEController::determineAircraftCat(EuroScopePlugIn::CFlightPlan fp)
 {
 	char wtc = fp.GetFlightPlanData().GetAircraftWtc();
 	std::string actype = fp.GetFlightPlanData().GetAircraftFPType();
-	if (wtc == 'L')
-		return 'B';
-	if (wtc == 'J')
-		return 'F';
-	if (wtc == 'H')
-		return 'E';
-	if (wtc == 'M')
-		return 'C';
+	auto found = parkingdict.find(actype);
+	if (found != parkingdict.end())
+		return found->second.c_str()[0];
+	else {
+		if (wtc == 'L')
+			return 'B';
+		if (wtc == 'J')
+			return 'F';
+		if (wtc == 'H')
+			return 'E';
+		if (wtc == 'M')
+			return 'C';
+	}
 }
 void CUAEController::readStandFile(std::string dir, std::string airport)
 {

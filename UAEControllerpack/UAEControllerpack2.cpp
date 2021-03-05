@@ -995,6 +995,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		break;
 	case TAG_FUNC_MANUAL_FINISH:
 	{
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		std::string input = sItemString;
 		auto dest = fp.GetFlightPlanData().GetDestination();
 		auto found = data.find(dest);
@@ -1112,7 +1114,95 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			return;
 		remarks += "/STAND" + input;
 		fpdata.SetRemarks(remarks.c_str());
-		fpdata.AmendFlightPlan();
+		bool successful = fpdata.AmendFlightPlan();
+		//rolling back if we couldnt amend flightplan (other controller tracking or we are obs)
+		if (!successful)
+		{
+			standmapping.at(dest).erase(fp.GetCallsign());
+			if (code == "UAE" && standsUAE.find(dest) != standsUAE.end())
+			{
+				for (auto &temp : standsUAE.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+			if (code == "ETD" && standsETD.find(dest) != standsETD.end())
+			{
+				for (auto &temp : standsETD.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+			if ((code == "PAX" || code == "ABY") && standsPAX.find(dest) != standsPAX.end())
+			{
+				for (auto &temp : standsPAX.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+
+			if ((code == "CARGO" || code == "CLC") && standsCARGO.find(dest) != standsCARGO.end())
+			{
+				for (auto &temp : standsCARGO.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+
+			if ((code == "LWC" || code == "CLC") && standsLOWCOST.find(dest) != standsLOWCOST.end())
+
+			{
+				for (auto &temp : standsLOWCOST.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+			if (code == "GA" && standsGA.find(dest) != standsGA.end())
+			{
+				for (auto &temp : standsGA.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+			if (code == "VIP" && standsVIP.find(dest) != standsVIP.end())
+			{
+				for (auto &temp : standsVIP.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+			if ((code == "ABY" || code == "PAX") && standsABY.find(dest) != standsABY.end())
+			{
+				for (auto &temp : standsABY.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+			if (code == "CARGO1" && standsCargoSpecial.find(dest) != standsCargoSpecial.end())
+			{
+				for (auto &temp : standsCargoSpecial.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+			if (code == "ALL" && standsOverflow.find(dest) != standsOverflow.end())
+			{
+				for (auto &temp : standsOverflow.at(dest))
+				{
+					if (temp.number == it.number)
+						temp.isAssigned = false;
+				}
+			}
+		}
 		break;
 
 
@@ -1120,6 +1210,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_CLEAR:
 	{
 		auto dest = fp.GetFlightPlanData().GetDestination();
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "")!=0)
+			break;
 		if (std::find(activeAirports.begin(), activeAirports.end(), dest) == activeAirports.end()) return;
 		auto airportstanddata = data.find(dest);
 		auto copy = standmapping.find(dest)->second;
@@ -1275,6 +1367,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_CARGO:
 	{
 	CARGO:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1329,6 +1423,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_PAX:
 	{
 	PAX:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1382,6 +1478,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_UAE:
 	{
 	UAE:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1430,6 +1528,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_ABY:
 	{
 	ABY:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1489,6 +1589,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_VIP:
 	{
 	VIP:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1537,6 +1639,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_LOWCOST:
 	{
 	LWC:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1590,6 +1694,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_GA:
 	{
 	GA:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1638,6 +1744,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_ETD:
 	{
 	ETD:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1686,6 +1794,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_CARGO2:
 	{
 	CARGO1:
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
@@ -1733,6 +1843,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	}
 	case TAG_FUNC_ROUTING:
 	{
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
 		std::string handlername = "Route for ";
 		handlername += fp.GetCallsign();
 		std::string dest = fpdata.GetDestination();

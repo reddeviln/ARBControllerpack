@@ -97,6 +97,8 @@ void TimerRadar::OnRefresh(HDC hDC, int Phase)
 		//Gdiplus::Bitmap* image = Gdiplus::Bitmap::FromFile(path.c_str());
 		Gdiplus::SolidBrush timerbrush(Gdiplus::Color::Gray);
 		Gdiplus::SolidBrush blackbrush(Gdiplus::Color::Black);
+		Gdiplus::SolidBrush orangebrush(Gdiplus::Color::Orange);
+		Gdiplus::SolidBrush redbrush(Gdiplus::Color::Red);
 		Gdiplus::Pen mypen(Gdiplus::Color::Black);
 		graphics.FillRectangle(&timerbrush, CopyRect(Timer));
 		auto topleft = Timer.TopLeft();
@@ -104,6 +106,8 @@ void TimerRadar::OnRefresh(HDC hDC, int Phase)
 		auto width = Timer.Width();
 		auto bottomright = Timer.BottomRight();
 		//draw line seperating timer from time options
+		
+
 		graphics.DrawLine(&mypen, topleft.x, topleft.y + height / 3, bottomright.x, topleft.y + height / 3);
 		//draw option seperating lines
 		for (int i = 1; i <= 5; i++)
@@ -132,7 +136,12 @@ void TimerRadar::OnRefresh(HDC hDC, int Phase)
 		stringFormat.SetAlignment(Gdiplus::StringAlignmentCenter);
 		stringFormat.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 		timeremaining = (TimerRadar::GetCurrentTimeString(TimerRadar::GetSecondsRemaining())).str();
-		graphics.DrawString(timeremaining.c_str(), -1, &fontrem, rectFrem, &stringFormat, &blackbrush);
+		if (TimerRadar::GetSecondsRemaining() < 20 && TimerRadar::GetSecondsRemaining() >5)
+			graphics.DrawString(timeremaining.c_str(), -1, &fontrem, rectFrem, &stringFormat, &orangebrush);
+		else if (timerrunning && TimerRadar::GetSecondsRemaining() <= 5)
+			graphics.DrawString(timeremaining.c_str(), -1, &fontrem, rectFrem, &stringFormat, &redbrush);
+		else 
+			graphics.DrawString(timeremaining.c_str(), -1, &fontrem, rectFrem, &stringFormat, &blackbrush);
 		for (int ij = 0; ij < 10; ij++)
 		{
 			graphics.DrawString(times.at(ij).c_str(), -1, &fontoptions, optionrects.at(ij), &stringFormat, &blackbrush);
@@ -208,6 +217,11 @@ bool TimerRadar::OnCompileCommand(const char * sCommandLine)
 		timervisible = true;
 		return true;
 	}
+	if (strcmp(".resettimer", sCommandLine) == 0)
+	{
+		Timer.MoveToXY(100, 100);
+		return true;
+	}
 	return false;
 }
 
@@ -235,17 +249,20 @@ void TimerRadar::startTimer(int sec)
 {
 	timeremainseconds = sec;
 	endTime = time(0) + sec;
+	timerrunning = true;
 }
 void TimerRadar::cancelTimer()
 {
 	if (endTime != NULL) {
 		
 		endTime = NULL;
+		timerrunning = false;
 	}
 }
 int TimerRadar::GetSecondsRemaining()
 {
 	if (endTime == NULL) {
+		timerrunning = false;
 		return 0;
 	}
 

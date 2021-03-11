@@ -395,57 +395,62 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 		case TAG_ITEM_STAND:
 		{
 			auto icao = FlightPlan.GetFlightPlanData().GetDestination();
-			auto found = standmapping.find(icao);
-			if (found == standmapping.end()) return;
-			auto found3 = found->second.find(FlightPlan.GetCallsign());
-			//auto found = standmapping.find(FlightPlan.GetCallsign());
-			if (found3 != found->second.end())
+			if (std::find(activeAirports.begin(), activeAirports.end(), icao) == activeAirports.end())
 			{
-				auto temp = found3->second.number;
-				strcpy(sItemString, temp.c_str());
-				auto found4 = data.find(icao);
-				if (found4 == data.end()) return;
-				auto found2 = found4->second.find(temp);
-				if (found2 != found4->second.end())
-				{
-					auto aircraftposition = FlightPlan.GetCorrelatedRadarTarget().GetPosition().GetPosition();
-					if (!FlightPlan.GetCorrelatedRadarTarget().IsValid())
-						break;
-					if (!found2->second.isEmpty && aircraftposition.DistanceTo(found2->second.position) >= TOL)
-					{
-						*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
-					}
-				}
-			}
-			else
-			{
-				auto fpdata = FlightPlan.GetFlightPlanData();
-				std::string remarks = fpdata.GetRemarks();
-				auto dest = fpdata.GetDestination();
-				std::regex reOMDB = std::regex(R"(\/STAND([A-Z]\d{1,2}))");
-				std::regex reOMSJ = std::regex(R"(\/STAND(\d{1,2}[A-Z]?))");
-				std::regex reOMAA1 = std::regex(R"(\/STAND(\d{1,3}))");
-				std::regex reOMAA2 = std::regex(R"(\/STAND(GA))");
-				std::smatch match;
-				if ((std::regex_search(remarks, match, reOMDB) && strcmp(dest, "OMDB") == 0) || (std::regex_search(remarks, match, reOMSJ) && strcmp(dest, "OMSJ") == 0) || ((std::regex_search(remarks, match, reOMAA1) || std::regex_search(remarks, match, reOMAA2)) && strcmp(dest, "OMAA") == 0))
-				{
-					std::string stand = match.str(1);
-					auto found2 = data.find(icao);
-					if (found2 == data.end()) break;
-					auto found = found2->second.find(stand);
-					if (found != found2->second.end())
-					{
-						found->second.isAssigned = true;
-						auto temp2 = standmapping.find(icao);
-						auto copy = temp2->second;
-						std::pair<std::string, Stand> temp(FlightPlan.GetCallsign(), found->second);
-						copy.insert(temp);
-						standmapping.at(icao) = copy;
-					}
-				}
+				std::string logstring = "The airport ";
+				logstring += icao;
+				logstring += " does not have any data setup. Ignoring it.";
 
+				LOG_F(INFO, logstring.c_str());
+				return;
 			}
-			
+
+			auto fpdata = FlightPlan.GetFlightPlanData();
+			std::string remarks = fpdata.GetRemarks();
+			auto dest = fpdata.GetDestination();
+			std::regex reOMDB = std::regex(R"(\/STAND([A-Z]\d{1,2}))");
+			std::regex reOMSJ = std::regex(R"(\/STAND(\d{1,2}[A-Z]?))");
+			std::regex reOMAA1 = std::regex(R"(\/STAND(\d{1,3}))");
+			std::regex reOMAA2 = std::regex(R"(\/STAND(GA))");
+			std::smatch match;
+			if ((std::regex_search(remarks, match, reOMDB) && strcmp(dest, "OMDB") == 0) || (std::regex_search(remarks, match, reOMSJ) && strcmp(dest, "OMSJ") == 0) || ((std::regex_search(remarks, match, reOMAA1) || std::regex_search(remarks, match, reOMAA2)) && strcmp(dest, "OMAA") == 0))
+			{
+				auto stand = match.str(1);
+				auto found2 = data.find(icao);
+
+				if (found2 == data.end()) break;
+				auto found = found2->second.find(stand);
+				if (found != found2->second.end())
+				{
+					found->second.isAssigned = true;
+					auto temp2 = standmapping.find(icao);
+					
+					if (temp2 == standmapping.end())
+					{
+						std::unordered_map<std::string, Stand> tempp;
+						standmapping.insert(std::make_pair(icao, tempp));
+					}
+					auto copy = standmapping.at(icao);
+					//LOG_F(INFO, std::to_string(standmapping.size()).c_str());
+					std::pair<std::string, Stand> temp(FlightPlan.GetCallsign(), found->second);
+					copy.insert(temp);
+					standmapping.at(icao) = copy;
+				}
+				auto aircraftposition = FlightPlan.GetCorrelatedRadarTarget().GetPosition().GetPosition();
+				if (!FlightPlan.GetCorrelatedRadarTarget().IsValid())
+					break;
+				if (!found->second.isEmpty && aircraftposition.DistanceTo(found->second.position) >= TOL)
+				{
+					*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
+				}
+				if (CUAEController::determineAircraftCat(FlightPlan) > found->second.mSize)
+				{
+					*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+					*pRGB = RGB(255, 191, 0);
+				}
+				strcpy(sItemString, found->second.number.c_str());
+				return;
+			}
 			break;
 
 		}
@@ -837,7 +842,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 
 void  CUAEController::OnTimer(int Counter)
 {
-	if (Counter % 10 == 0)
+	if (Counter % 5 == 0)
 	{
 		cleanupStands();
 	}
@@ -2837,19 +2842,38 @@ void CUAEController::cleanupStands()
 			if (it.second.isAssigned)
 			{
 				auto first = FlightPlanSelectFirst();
-				std::string cs = first.GetCallsign();
-				auto found = standmapping.at(airport).find(cs);
-				if (found != standmapping.at(airport).end())
-					if (it.second.number == found->second.number)
+				std::regex re, re1;
+				if (airport == "OMDB")
+				{
+					re = std::regex(R"(\/STAND([A-Z]\d{1,2}))");
+					re1 = re;
+				}
+				if (airport == "OMSJ")
+				{
+					re = std::regex(R"(\/STAND(\d{1,2}[A-Z]?))");
+					re1 = re;
+				}
+				if (airport == "OMAA")
+				{
+					re = std::regex(R"(\/STAND(\d{1,3}))");
+					re1 = std::regex(R"(\/STAND(GA))");
+				}
+				std::string remarks = first.GetFlightPlanData().GetRemarks();
+				std::smatch match,match1;
+				if (std::regex_search(remarks, match, re) || std::regex_search(remarks, match1, re1))
+				{
+					if (it.second.number == match.str(1) || it.second.number == match1.str(1))
 						goto outer;
+				}
 				auto temp = FlightPlanSelectNext(first);
 				while (temp.IsValid())
 				{
-					cs = temp.GetCallsign();
-					auto found = standmapping.at(airport).find(cs);
-					if (found != standmapping.at(airport).end())
-						if (it.second.number == found->second.number)
+					remarks = temp.GetFlightPlanData().GetRemarks();
+					if (std::regex_search(remarks, match, re) || std::regex_search(remarks, match1, re1))
+					{
+						if (it.second.number == match.str(1) || it.second.number == match1.str(1))
 							goto outer;
+					}
 					temp = FlightPlanSelectNext(temp);
 				}
 				it.second.isAssigned = false;
@@ -2942,9 +2966,10 @@ void CUAEController::cleanupStands()
 		outer:
 			continue;
 		}
+		
 	}
 
-
+	
 
 }
 Stand CUAEController::extractRandomStand(std::vector<Stand> stands, char size, std::string icao)

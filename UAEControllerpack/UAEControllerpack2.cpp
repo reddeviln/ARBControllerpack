@@ -475,9 +475,6 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			{
 				if (temp == icaodest)
 				{
-					std::string logstring = "Found a designated route to " + icaodest + " for " + FlightPlan.GetCallsign();
-					LOG_F(INFO, logstring.c_str());
-
 					foundRoute = true;
 					break;
 				}
@@ -491,11 +488,6 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 					{
 
 						icaodest = icaodest.substr(0, 2);
-						std::string logstring = "Using dummy route to " + icaodest + " for " + FlightPlan.GetCallsign();
-						LOG_F(INFO, logstring.c_str());
-
-						icaodest = icaodest.substr(0, 2);
-
 						foundRoute = true;
 						break;
 					}

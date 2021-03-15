@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.0"
+#define MY_PLUGIN_VERSION   "1.2.1"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -1216,10 +1216,12 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	{
 		auto dest = fp.GetFlightPlanData().GetDestination();
 		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "")!=0)
-			break;
+			return;
 		if (std::find(activeAirports.begin(), activeAirports.end(), dest) == activeAirports.end()) return;
 		auto airportstanddata = data.find(dest);
-		auto copy = standmapping.find(dest)->second;
+		auto temp1 = standmapping.find(dest);
+		if (temp1 == standmapping.end()) return;
+		auto copy = temp1->second;
 		auto stand = copy.find(fp.GetCallsign());
 		if (stand == copy.end()) return;
 		auto fpdata = fp.GetFlightPlanData();
@@ -1241,7 +1243,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		fpdata.AmendFlightPlan();
 
 
-		break;
+		return;
 	}
 	case TAG_FUNC_ASSIGN_POPUP:
 	{

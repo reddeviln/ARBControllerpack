@@ -997,17 +997,36 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		OpenPopupEdit(Area,
 			TAG_FUNC_MANUAL_FINISH,
 			"");
+		LOG_F(INFO, "Opening textbox for stand assignment.");
 		break;
 	case TAG_FUNC_MANUAL_FINISH:
 	{
+		LOG_F(INFO, "Processing textinput as stand.");
 		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
-			break;
-		std::string input = sItemString;
+			return;
+		auto fpdata = fp.GetFlightPlanData();
+		std::string remarks = fpdata.GetRemarks();
 		auto dest = fp.GetFlightPlanData().GetDestination();
+		std::smatch match;
+		if (strcmp(dest, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
+			return;
+		if (strcmp(dest, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
+			return;
+		if (strcmp(dest, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
+			return;
+		LOG_F(INFO, "Aircraft can be modified. We are processing aircraft: ");
+		LOG_F(INFO, fp.GetCallsign());
+		std::string input = sItemString;
+		
 		auto found = data.find(dest);
 		if (found == data.end()) return;
 		auto found2 = found->second.find(input);
 		if (found2 == found->second.end()) return;
+		std::string logstring;
+		logstring = "Stand ";
+		logstring += found2->second.number;
+		logstring += " found.";
+		LOG_F(INFO, logstring.c_str());
 		found2->second.isAssigned = true;
 		std::string code = found2->second.mAirlinecode;
 		auto it = found2->second;
@@ -1097,117 +1116,30 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		auto found3 = standmapping.find(dest);
 		std::unordered_map<std::string, Stand> copy;
 		if (found3 != standmapping.end())
-			std::unordered_map<std::string, Stand> copy = found3->second;
+			copy = found3->second;
 		std::pair<std::string, Stand> temp2(fp.GetCallsign(), found2->second);
 		copy.insert(temp2);
-		if (standmapping.find(dest) == standmapping.end())
+		if (found3 == standmapping.end())
 		{
 			std::pair<std::string, std::unordered_map<std::string, Stand>> temp3(dest, copy);
 			standmapping.insert(temp3);
+			LOG_F(INFO, "Standmapping was empty");
 		}
 		else
+		{
 			standmapping.at(dest) = copy;
-
-		auto fpdata = fp.GetFlightPlanData();
-		std::string remarks = fpdata.GetRemarks();
-		std::smatch match;
-		if (strcmp(dest, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
-			return;
-		if (strcmp(dest, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
-			return;
-		if (strcmp(dest, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
-			return;
+			LOG_F(INFO, "Standmapping was not empty");
+		}
+			
+		
+		
 		remarks += "/STAND" + input;
 		fpdata.SetRemarks(remarks.c_str());
 		bool successful = fpdata.AmendFlightPlan();
-		//rolling back if we couldnt amend flightplan (other controller tracking or we are obs)
-		if (!successful)
-		{
-			standmapping.at(dest).erase(fp.GetCallsign());
-			if (code == "UAE" && standsUAE.find(dest) != standsUAE.end())
-			{
-				for (auto &temp : standsUAE.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-			if (code == "ETD" && standsETD.find(dest) != standsETD.end())
-			{
-				for (auto &temp : standsETD.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-			if ((code == "PAX" || code == "ABY") && standsPAX.find(dest) != standsPAX.end())
-			{
-				for (auto &temp : standsPAX.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-
-			if ((code == "CARGO" || code == "CLC") && standsCARGO.find(dest) != standsCARGO.end())
-			{
-				for (auto &temp : standsCARGO.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-
-			if ((code == "LWC" || code == "CLC") && standsLOWCOST.find(dest) != standsLOWCOST.end())
-
-			{
-				for (auto &temp : standsLOWCOST.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-			if (code == "GA" && standsGA.find(dest) != standsGA.end())
-			{
-				for (auto &temp : standsGA.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-			if (code == "VIP" && standsVIP.find(dest) != standsVIP.end())
-			{
-				for (auto &temp : standsVIP.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-			if ((code == "ABY" || code == "PAX") && standsABY.find(dest) != standsABY.end())
-			{
-				for (auto &temp : standsABY.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-			if (code == "CARGO1" && standsCargoSpecial.find(dest) != standsCargoSpecial.end())
-			{
-				for (auto &temp : standsCargoSpecial.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-			if (code == "ALL" && standsOverflow.find(dest) != standsOverflow.end())
-			{
-				for (auto &temp : standsOverflow.at(dest))
-				{
-					if (temp.number == it.number)
-						temp.isAssigned = false;
-				}
-			}
-		}
+		if(successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
 		break;
 
 
@@ -1217,6 +1149,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		auto dest = fp.GetFlightPlanData().GetDestination();
 		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "")!=0)
 			return;
+		LOG_F(INFO, "Clear Stand called on aircraft: ");
+		LOG_F(INFO, fp.GetCallsign());
 		if (std::find(activeAirports.begin(), activeAirports.end(), dest) == activeAirports.end()) return;
 		auto airportstanddata = data.find(dest);
 		auto temp1 = standmapping.find(dest);
@@ -1225,9 +1159,12 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		auto stand = copy.find(fp.GetCallsign());
 		if (stand == copy.end()) return;
 		auto fpdata = fp.GetFlightPlanData();
+		LOG_F(INFO, "Standmapping size before clear: ");
+		LOG_F(INFO, std::to_string(standmapping.at(dest).size()).c_str());
 		copy.erase(fp.GetCallsign());
 		standmapping.at(dest) = copy;
-
+		LOG_F(INFO, "Standmapping size after clear: ");
+		LOG_F(INFO, std::to_string(standmapping.at(dest).size()).c_str());
 		std::string remarks = fpdata.GetRemarks();
 		if (strcmp(dest, "OMDB") == 0)
 			remarks = std::regex_replace(remarks, std::regex(R"(\/STAND[A-Z]\d{1,2})"), "");
@@ -1240,8 +1177,11 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		}
 
 		fpdata.SetRemarks(remarks.c_str());
-		fpdata.AmendFlightPlan();
-
+		bool successful = fpdata.AmendFlightPlan();
+		if (successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
 
 		return;
 	}
@@ -1266,10 +1206,12 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		AddPopupListElement("Assign VIP", "", TAG_FUNC_ASSIGN_VIP);
 		AddPopupListElement("Assign GA", "", TAG_FUNC_ASSIGN_GA);
 		AddPopupListElement("Clear", "", TAG_FUNC_CLEAR);
+		LOG_F(INFO, "Opening stand assignment dialog.");
 		break;
 	}
 	case TAG_FUNC_ASSIGN_AUTO:
 	{
+		LOG_F(INFO, "Auto assign selected.");
 		std::string callsign = fp.GetCallsign();
 		std::string remarks = fp.GetFlightPlanData().GetRemarks();
 		if (remarks.find("Cargo") != std::string::npos || remarks.find("CARGO") != std::string::npos || remarks.find("cargo") != std::string::npos || remarks.find("freight") != std::string::npos || remarks.find("Freight") != std::string::npos || remarks.find("FREIGHT") != std::string::npos)
@@ -1280,7 +1222,10 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			goto CARGO;
 		}
 		if (callsign.length() < 3)
+		{
+			LOG_F(INFO, "Callsign less then 3 characters. Treathing as PAX.");
 			goto PAX;
+		}
 		std::string op = callsign.substr(0, 3);
 		std::regex number = std::regex(R"(.*\d.*)");
 		std::smatch match;
@@ -1374,29 +1319,52 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	case TAG_FUNC_ASSIGN_CARGO:
 	{
 	CARGO:
+		LOG_F(INFO, "Cargo assignment in progress.");
 		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
 			break;
 		auto icao = fp.GetFlightPlanData().GetDestination();
+		auto fpdata = fp.GetFlightPlanData();
+		std::string remarks = fpdata.GetRemarks();
+		std::smatch match;
+		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
+			return;
+		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
+			return;
+		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
+			return;
+		std::string logstring = "Processing aircraft: ";
+		logstring += fp.GetCallsign();
+		LOG_F(INFO, logstring.c_str());
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
 		if (found != standmapping.end())
 		{
+			LOG_F(INFO, "Standmapping for destination is not empty.");
 			auto found2 = found->second.find(fp.GetCallsign());
 			if (found2 != found->second.end())
-				break;
+				return;
 			copy = standmapping.at(icao);
 		}
 		auto size = determineAircraftCat(fp);
+		logstring.clear();
+		logstring = "Aircraft parking code is ";
+		logstring += size;
+		LOG_F(INFO, logstring.c_str());
 		auto standshere = standsCARGO.find(icao);
 		if (standshere == standsCARGO.end()) break;
 		auto stand = extractRandomStand(standshere->second, size, icao);
 		if (stand.number == "Z00")
 			break;
+		logstring.clear();
+		logstring = "Valid stand returned. It is ";
+		logstring += stand.number;
+		LOG_F(INFO, logstring.c_str());
 		data.at(icao).at(stand.number).isAssigned = true;
 		std::pair<std::string, Stand> temp(fp.GetCallsign(), stand);
 		copy.insert(temp);
 		if (found == standmapping.end())
 		{
+			LOG_F(INFO, "Standmapping for destination is empty.");
 			std::pair<std::string, std::unordered_map<std::string, Stand>> temp2(icao, copy);
 			standmapping.insert(temp2);
 		}
@@ -1405,49 +1373,74 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		for (auto &temp : standsCARGO.at(icao))
 		{
 			if (temp.number == stand.number)
+			{
+				LOG_F(INFO, "Stand found in CARGO list.");
 				temp.isAssigned = true;
+				break;
+			}
 		}
 		for (auto &temp : standsLOWCOST.at(icao))
 		{
 			if (temp.number == stand.number)
+			{
+				LOG_F(INFO, "Stand found in LOWCOST list.");
 				temp.isAssigned = true;
+				break;
+			}
 		}
+		remarks += "/STAND" + stand.number;
+		fpdata.SetRemarks(remarks.c_str());
+		bool successful = fpdata.AmendFlightPlan();
+		if (successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
+		break;
+		
+	}
+	case TAG_FUNC_ASSIGN_PAX:
+	{
+	PAX:
+		LOG_F(INFO, "PAX assignment in progress.");
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
+		auto icao = fp.GetFlightPlanData().GetDestination();
 		auto fpdata = fp.GetFlightPlanData();
 		std::string remarks = fpdata.GetRemarks();
 		std::smatch match;
-
 		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
 			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
 		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
 			return;
-		remarks += "/STAND" + stand.number;
-		fpdata.SetRemarks(remarks.c_str());
-		fpdata.AmendFlightPlan();
-		break;
-	}
-	case TAG_FUNC_ASSIGN_PAX:
-	{
-	PAX:
-		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
-			break;
-		auto icao = fp.GetFlightPlanData().GetDestination();
+		std::string logstring = "Processing aircraft: ";
+		logstring += fp.GetCallsign();
+		LOG_F(INFO, logstring.c_str());
 		auto found = standmapping.find(icao);
 		std::unordered_map<std::string, Stand> copy;
 		if (found != standmapping.end())
 		{
+			LOG_F(INFO, "Standmapping for destination is not empty.");
 			auto found2 = found->second.find(fp.GetCallsign());
 			if (found2 != found->second.end())
 				break;
 			copy = standmapping.at(icao);
 		}
 		auto size = determineAircraftCat(fp);
+		logstring.clear();
+		logstring = "Aircraft parking code is ";
+		logstring += size;
+		LOG_F(INFO, logstring.c_str());
 		auto standshere = standsPAX.find(icao);
 		if (standshere == standsPAX.end()) break;
 		auto stand = extractRandomStand(standshere->second, size, icao);
 		if (stand.number == "Z00")
-			break;
+			return;
+		logstring.clear();
+		logstring = "Valid stand returned. It is ";
+		logstring += stand.number;
+		LOG_F(INFO, logstring.c_str());
 		data.at(icao).at(stand.number).isAssigned = true;
 		std::pair<std::string, Stand> temp(fp.GetCallsign(), stand);
 		copy.insert(temp);
@@ -1468,18 +1461,14 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			if (temp.number == stand.number)
 				temp.isAssigned = true;
 		}
-		auto fpdata = fp.GetFlightPlanData();
-		std::string remarks = fpdata.GetRemarks();
-		std::smatch match;
-		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
-			return;
-		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
-			return;
-		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
-			return;
+		
 		remarks += "/STAND" + stand.number;
 		fpdata.SetRemarks(remarks.c_str());
-		fpdata.AmendFlightPlan();
+		bool successful = fpdata.AmendFlightPlan();
+		if (successful)
+			LOG_F(INFO, "FP amend successful");
+		else
+			LOG_F(INFO, "FP amend NOT successful");
 		break;
 	}
 	case TAG_FUNC_ASSIGN_UAE:

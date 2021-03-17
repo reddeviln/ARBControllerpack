@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.2.1"
+#define MY_PLUGIN_VERSION   "1.2.2"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -437,10 +437,16 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 					standmapping.at(icao) = copy;
 				}
 				auto aircraftposition = FlightPlan.GetCorrelatedRadarTarget().GetPosition().GetPosition();
-				if (!FlightPlan.GetCorrelatedRadarTarget().IsValid())
-					break;
 				if (!found->second.isEmpty && aircraftposition.DistanceTo(found->second.position) >= TOL)
 				{
+					auto temp1 = aircraftposition.DistanceTo(found->second.position);
+					auto temp2 = aircraftposition.m_Latitude;
+					std::string logstring = "Duplicate stand detected. Distance: ";
+					logstring += temp1;
+					logstring += ". Latitude of aircraft: ";
+					logstring += temp2;
+
+					LOG_F(INFO, logstring.c_str());
 					*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
 				}
 				if (CUAEController::determineAircraftCat(FlightPlan) > found->second.mSize)

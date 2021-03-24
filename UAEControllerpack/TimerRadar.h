@@ -9,6 +9,7 @@ using std::max;
 #include<future>
 #include <chrono>
 #include<sstream>
+#pragma comment(lib, "Winmm.lib")
 
 #pragma comment(lib,"gdiplus.lib")
 

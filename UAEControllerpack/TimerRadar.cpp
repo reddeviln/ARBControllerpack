@@ -1,8 +1,11 @@
 #include "pch.h"
 #include "TimerRadar.h"
+#include <Mmsystem.h>
+#include <mciapi.h>
 
 
 std::wstring thisdirectory;
+std::string thisdirnorm;
 const int TIMER = 354864;
 CRect Timer(100, 100, 300, 200);
 int Timerleft, Timertop, Timerright, Timerbottom;
@@ -16,6 +19,9 @@ time_t endTime = 0;
 
 TimerRadar::TimerRadar(std::wstring dir)
 {
+	using convert_type = std::codecvt_utf8<wchar_t>;
+	std::wstring_convert<convert_type, wchar_t> converter;
+	thisdirnorm = converter.to_bytes(dir);
 	if(Timerleft !=0 && Timertop != 0 && Timerright != 0 && Timerbottom != 0)
 		Timer.SetRect(Timerleft, Timertop, Timerright, Timerbottom);
 	thisdirectory = dir;
@@ -268,6 +274,8 @@ int TimerRadar::GetSecondsRemaining()
 
 	int timeDiff = static_cast<int>(difftime(endTime, time(0)));
 	if (timeDiff <= 0) {
+		std::string mystring = thisdirnorm + "Alarm.wav";
+		PlaySound(TEXT(mystring.c_str()), NULL, SND_ASYNC|SND_FILENAME);
 		TimerRadar::cancelTimer();
 		return 0;
 	}

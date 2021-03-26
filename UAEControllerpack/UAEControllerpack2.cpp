@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.3"
+#define MY_PLUGIN_VERSION   "1.3.1"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -2872,6 +2872,11 @@ void CUAEController::cleanupStands()
 					temp = FlightPlanSelectNext(temp);
 				}
 				it.second.isAssigned = false;
+				for (auto temp : standmapping.at(airport))
+				{
+					if (temp.second.number == it.second.number)
+						standmapping.at(airport).erase(temp.first);
+				}
 				std::string code = it.second.mAirlinecode;
 				if (code == "UAE")
 				{

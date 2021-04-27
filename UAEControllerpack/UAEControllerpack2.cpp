@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.3.2"
+#define MY_PLUGIN_VERSION   "1.4"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -472,6 +472,15 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 		case TAG_ITEM_ROUTE_VALID:
 		{
 			auto fpdata = FlightPlan.GetFlightPlanData();
+			if (FlightPlan.GetClearenceFlag())
+			{
+				std::string logstring = "Aircraft ";
+				logstring += FlightPlan.GetCallsign();
+				logstring += "is skipped because Clearance flag is set.";
+				LOG_F(INFO, logstring.c_str());
+				return;
+			}
+				
 			std::string icaodep = fpdata.GetOrigin();
 			if (routedata.find(icaodep) == routedata.end())
 			{

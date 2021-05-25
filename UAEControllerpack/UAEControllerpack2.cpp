@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.4"
+#define MY_PLUGIN_VERSION   "1.5"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -61,7 +61,8 @@ std::unordered_map<std::string, std::vector<Stand>> standsABY;
 std::unordered_map<std::string, std::vector<Stand>> standsETD;
 std::unordered_map<std::string, std::vector<Stand>> standsCargoSpecial;
 std::vector<std::string> activeAirports;
-std::unordered_map<std::string, RouteData> routedata;
+std::unordered_map<std::string, RouteData> routedataoptional;
+std::unordered_map<std::string, RouteData> routedatamandatory;
 //Constructor (run at plugin load)
 CUAEController::CUAEController(void)
 	: CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
@@ -151,8 +152,9 @@ CUAEController::CUAEController(void)
 		parkingdict.insert(tmp);
 	}
 	LOG_F(INFO, "RECAT dictionary read without issues!");
-
+	///////////////////////////////////////////////////////////////////////////////////
 	//-------------------------------------------2. All Airport stands and mappings
+	////////////////////////////////////////////////////////////////////////////////////
 	std::regex icao(R"(.*\\([A-Z]{4}))");
 	for (auto entry : std::filesystem::directory_iterator(directory))
 	{
@@ -281,25 +283,48 @@ CUAEController::CUAEController(void)
 		standsETD.insert(temp10);
 
 	}
-
-    //---------------------------3. Route restriction file 
+	/////////////////////////////////////////////////////////////////////////////////////
+    //---------------------------3. Route restriction files (mandatory and optional)
+	/////////////////////////////////////////////////////////////////////////////////////
 	dir = directory;
-	dir += "RouteChecker.csv";
+	std::string dir2 = directory;
+	dir += "RouteCheckerOptional.csv";
+	dir2 += "RouteCheckerMandatory.csv";
 	io::CSVReader<5, io::trim_chars<' '>, io::no_quote_escape<','>> in2(dir);
+	io::CSVReader<5, io::trim_chars<' '>, io::no_quote_escape<','>> in3(dir2);
 	in2.read_header(io::ignore_extra_column, "Dep", "Dest", "Evenodd", "Restriction", "Route");
 	std::string Dep, Dest, evenodd, LevelR, Routing;
-	while (in2
-.read_row(Dep, Dest, evenodd, LevelR, Routing))
+	while (in2.read_row(Dep, Dest, evenodd, LevelR, Routing))
 	{
 		auto temp = RouteTo(Dep, Dest, evenodd, LevelR, Routing);
 		auto depicao = temp.mDEPICAO;
 		RouteData dt;
 		std::pair<std::string, RouteData> mypair(depicao, dt);
-		routedata.insert(mypair);
-		routedata.at(depicao).Routes.push_back(temp);
-		routedata.at(depicao).icaos.push_back(Dest);
+		routedataoptional.insert(mypair);
+		routedataoptional.at(depicao).Routes.push_back(temp);
+		routedataoptional.at(depicao).icaos.push_back(Dest);
 	}
-	LOG_F(INFO, "Route file parsed succesfully.");
+	LOG_F(INFO, "Route file optional parsed successfully.");
+	/////////////////////////////////////////////////////////
+	//mandatory
+	///////////////////////////////////////////////////////
+	in3.read_header(io::ignore_extra_column, "Dep", "Dest", "Evenodd", "Restriction", "MandatoryRoute");
+	Dep.erase();
+	Dest.erase();
+	evenodd.erase();
+	LevelR.erase();
+	Routing.erase();
+	while (in3.read_row(Dep, Dest, evenodd, LevelR, Routing))
+	{
+		auto temp = RouteTo(Dep, Dest, evenodd, LevelR, Routing);
+		auto depicao = temp.mDEPICAO;
+		RouteData dt;
+		std::pair<std::string, RouteData> mypair(depicao, dt);
+		routedatamandatory.insert(mypair);
+		routedatamandatory.at(depicao).Routes.push_back(temp);
+		routedatamandatory.at(depicao).icaos.push_back(Dest);
+	}
+	LOG_F(INFO, "Route file mandatory parsed successfully.");
 	LOG_F(INFO, "Done file reading.");
 }
 //Destructor
@@ -482,7 +507,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			}
 				
 			std::string icaodep = fpdata.GetOrigin();
-			if (routedata.find(icaodep) == routedata.end())
+			if (routedatamandatory.find(icaodep) == routedatamandatory.end())
 			{
 				strcpy(sItemString, "?");
 				return;
@@ -495,7 +520,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				return;
 			}
 			bool foundRoute = false;
-			for (auto temp : routedata.at(icaodep).icaos)
+			for (auto temp : routedatamandatory.at(icaodep).icaos)
 			{
 				if (temp == icaodest)
 				{
@@ -506,7 +531,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			}
 			if (!foundRoute)
 			{
-				for (auto temp : routedata.at(icaodep).icaos)
+				for (auto temp : routedatamandatory.at(icaodep).icaos)
 				{
 					if (temp == icaodest.substr(0, 2))
 					{
@@ -518,7 +543,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				}
 				if (!foundRoute)
 				{
-					for (auto temp : routedata.at(icaodep).icaos)
+					for (auto temp : routedatamandatory.at(icaodep).icaos)
 					{
 						if (temp == icaodest.substr(0, 1))
 						{
@@ -532,52 +557,30 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				if (!foundRoute)
 				{
 					strcpy(sItemString, "?");
-					std::string logstring = "No (dummy) route to " + icaodest + " found for " + FlightPlan.GetCallsign();
+					std::string logstring = "No mandatory (dummy) route to " + icaodest + " found for " + FlightPlan.GetCallsign();
 					LOG_F(INFO, logstring.c_str());
 					return;
 				}
 			}
-			auto dt = routedata.at(icaodep).getDatafromICAO(icaodest);
-			bool cruisevalid = false;
-			bool routevalid = false;
+			auto dt = routedatamandatory.at(icaodep).getDatafromICAO(icaodest);
+			std::string validmandatory = isFlightPlanValid(dt, fpdata.GetRoute(), fpdata.GetFinalAltitude());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
-			for (auto d : dt) {
-				std::string tmp = fpdata.GetRoute();
-				std::regex rule("\\/(.+?)(\\\s+?)");
-				tmp = std::regex_replace(tmp, rule, " ");
-				if (!routevalid)
-				{
-					routevalid = d.isRouteValid(tmp);
-				}
-				else
-				{
-					cruisevalid = d.isCruiseValid(FlightPlan.GetFinalAltitude());
-					if (cruisevalid && routevalid)
-					{
-						strcpy(sItemString, "");
-						return;
-					}
-					else {
-						strcpy(sItemString, "L");
-						return;
-					}
-
-				}
-				cruisevalid = d.isCruiseValid(FlightPlan.GetFinalAltitude());
-				if (routevalid && cruisevalid)
-				{
-					strcpy(sItemString, "");
-					return;
-
-				}
-
+			if (validmandatory != "o")
+			{
+				strcpy(sItemString, validmandatory.c_str());
+				return;
 			}
-
-			if (cruisevalid && !routevalid) strcpy(sItemString, "R");
-			else if (routevalid && !cruisevalid) strcpy(sItemString, "L");
-			else {
-				strcpy(sItemString, "X");
+			else 
+			{
+				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodest);
+				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
+				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+				*pRGB = RGB(255, 191, 0);
+				if (validoptional == "o") return;
+				strcpy(sItemString, validoptional.c_str());
+				return;
 			}
+			
 
 
 			return;
@@ -855,7 +858,45 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 		}
 	}
 }
+std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, std::string Route, int level)
+{
+	bool routevalid = false;
+	bool cruisevalid = false;
+	for (auto d : dt) {
+		std::string tmp = Route;
+		std::regex rule("\\/(.+?)(\\\s+?)");
+		tmp = std::regex_replace(tmp, rule, " ");
+		if (!routevalid)
+		{
+			routevalid = d.isRouteValid(tmp);
+		}
+		else
+		{
+			cruisevalid = d.isCruiseValid(level);
+			if (cruisevalid && routevalid)
+			{
+				
+				return "o";
+			}
+			else {
+				return "L";
+			}
 
+		}
+		cruisevalid = d.isCruiseValid(level);
+		if (routevalid && cruisevalid)
+		{
+			return "o";
+
+		}
+
+	}
+	if (cruisevalid && !routevalid) return "R";
+	else if (routevalid && !cruisevalid) return "L";
+	else {
+		return "X";
+	}
+}
 void  CUAEController::OnTimer(int Counter)
 {
 	if (Counter % 5 == 0)
@@ -1979,13 +2020,13 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::string handlername = "Route for ";
 		handlername += fp.GetCallsign();
 		std::string dest = fpdata.GetDestination();
-		auto routes = routedata[fpdata.GetOrigin()].getDatafromICAO(dest);
+		auto routes = routedatamandatory[fpdata.GetOrigin()].getDatafromICAO(dest);
 		if (routes.empty())
 		{
-			routes = routedata[fpdata.GetOrigin()].getDatafromICAO(dest.substr(0, 2));
+			routes = routedatamandatory[fpdata.GetOrigin()].getDatafromICAO(dest.substr(0, 2));
 			if (routes.empty())
 			{
-				routes = routedata[fpdata.GetOrigin()].getDatafromICAO(dest.substr(0, 1));
+				routes = routedatamandatory[fpdata.GetOrigin()].getDatafromICAO(dest.substr(0, 1));
 				if (routes.empty())
 					DisplayUserMessage(handlername.c_str(), "", "No route found", true, true, true, true, true);
 			}

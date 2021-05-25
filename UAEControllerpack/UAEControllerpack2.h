@@ -377,6 +377,12 @@ public:
 		COLORREF * pRGB,
 		double * pFontSize);
 
+	std::string isFlightPlanValid(std::vector<RouteTo> dt, std::string Route, int level);
+	//returnvalue: "o": valid
+	//             "L": level invalid but route valid
+	//             "R": route invalid but level valid
+	//             "X": both invalid
+
 	virtual EuroScopePlugIn::CRadarScreen    *OnRadarScreenCreated(const char * sDisplayName,
 		bool NeedRadarContent,
 		bool GeoReferenced,

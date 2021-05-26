@@ -231,6 +231,7 @@ public:
 		}
 		return data;
 	}
+
 };
 
 class RouteData
@@ -400,6 +401,7 @@ public:
 
 	void cleanupStands();
 	Stand extractRandomStand(std::vector<Stand> stands, char size, std::string icao);
+	std::string getRouteRegion(std::unordered_map<std::string, RouteData> routedata, std::string icadep, std::string icaodest);
 	char determineAircraftCat(EuroScopePlugIn::CFlightPlan);
 	Stand getStandOfAircraft(EuroScopePlugIn::CPosition position);
 	void readStandFile(std::string dir, std::string airport);

@@ -507,64 +507,21 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				LOG_F(INFO, logstring.c_str());
 				return;
 			}
-				
-			std::string icaodep = fpdata.GetOrigin();
-			if (routedatamandatory.find(icaodep) == routedatamandatory.end())
-			{
-				strcpy(sItemString, "?");
-				return;
-			}
-			std::string icaodest = fpdata.GetDestination();
 			auto test = fpdata.GetPlanType();
 			if (strcmp(test, "V") == 0)
 			{
 				strcpy(sItemString, "");
 				return;
 			}
-			bool foundRoute = false;
-			for (auto temp : routedatamandatory.at(icaodep).icaos)
+			std::string icaodest = fpdata.GetDestination();
+			std::string icaodep = fpdata.GetOrigin();
+			std::string icaodesttype = getRouteRegion(routedatamandatory,icaodep, icaodest);
+			if (icaodesttype == "?")
 			{
-				if (temp == icaodest)
-				{
-					foundRoute = true;
-					break;
-				}
-
+				strcpy(sItemString, "?");
+				return;
 			}
-			if (!foundRoute)
-			{
-				for (auto temp : routedatamandatory.at(icaodep).icaos)
-				{
-					if (temp == icaodest.substr(0, 2))
-					{
-
-						icaodest = icaodest.substr(0, 2);
-						foundRoute = true;
-						break;
-					}
-				}
-				if (!foundRoute)
-				{
-					for (auto temp : routedatamandatory.at(icaodep).icaos)
-					{
-						if (temp == icaodest.substr(0, 1))
-						{
-							icaodest = icaodest.substr(0, 1);
-
-							foundRoute = true;
-							break;
-						}
-					}
-				}
-				if (!foundRoute)
-				{
-					strcpy(sItemString, "?");
-					std::string logstring = "No mandatory (dummy) route to " + icaodest + " found for " + FlightPlan.GetCallsign();
-					LOG_F(INFO, logstring.c_str());
-					return;
-				}
-			}
-			auto dt = routedatamandatory.at(icaodep).getDatafromICAO(icaodest);
+			auto dt = routedatamandatory.at(icaodep).getDatafromICAO(icaodesttype);
 			std::string validmandatory = isFlightPlanValid(dt, fpdata.GetRoute(), fpdata.GetFinalAltitude());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
 			if (validmandatory != "o")
@@ -574,7 +531,8 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			}
 			else 
 			{
-				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodest);
+				icaodesttype = getRouteRegion(routedataoptional, icaodep, icaodest);
+				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);
 				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
 				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 				*pRGB = RGB(255, 191, 0);
@@ -3297,4 +3255,73 @@ void CUAEController::readCallsignFile(std::string dir, std::string airport)
 	logstring = "Callsignmapping file read for ";
 	logstring += airport;
 	LOG_F(INFO, logstring.c_str());
+}
+std::string CUAEController::getRouteRegion(std::unordered_map<std::string,RouteData> routedata,std::string icaodep, std::string icaodest)
+{
+	std::string returnvalue;
+	if (routedata.find(icaodep) == routedata.end())
+	{
+		
+		returnvalue =  "?";
+	}
+
+
+	bool foundRoute = false;
+	for (auto temp : routedata.at(icaodep).icaos)
+	{
+		if (temp == icaodest)
+		{
+			foundRoute = true;
+			break;
+		}
+
+	}
+	if (!foundRoute)
+	{
+		for (auto temp : routedata.at(icaodep).icaos)
+		{
+			if (temp == icaodest.substr(0, 3))
+			{
+
+				returnvalue = icaodest.substr(0, 3);
+				foundRoute = true;
+				break;
+			}
+		}
+		if (!foundRoute)
+		{
+			for (auto temp : routedata.at(icaodep).icaos)
+			{
+				if (temp == icaodest.substr(0, 2))
+				{
+
+					returnvalue = icaodest.substr(0, 2);
+					foundRoute = true;
+					break;
+				}
+			}
+			if (!foundRoute)
+			{
+				for (auto temp : routedata.at(icaodep).icaos)
+				{
+					if (temp == icaodest.substr(0, 1))
+					{
+						returnvalue = icaodest.substr(0, 1);
+
+						foundRoute = true;
+						break;
+					}
+				}
+			}
+			if (!foundRoute)
+			{
+				returnvalue = "?";
+				std::string logstring = "No mandatory (dummy) route to " + icaodest + " found.";
+				LOG_F(INFO, logstring.c_str());
+				return returnvalue;
+			}
+
+		}
+	}
+	return returnvalue;
 }

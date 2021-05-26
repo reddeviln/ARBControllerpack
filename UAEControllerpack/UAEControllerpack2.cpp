@@ -3272,6 +3272,7 @@ std::string CUAEController::getRouteRegion(std::unordered_map<std::string,RouteD
 		if (temp == icaodest)
 		{
 			foundRoute = true;
+			returnvalue = icaodest;
 			break;
 		}
 

@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.5"
+#define MY_PLUGIN_VERSION   "1.5.1"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -34,6 +34,7 @@ const int TAG_FUNC_MANUAL_FINISH = 2345;
 const int TAG_FUNC_ASSIGN_ETD = 568978;
 const int TAG_FUNC_CLEAR = 264;
 const int TAG_FUNC_ROUTING = 15;
+const int TAG_FUNC_ROUTING_OPT = 8463682;
 const int TAG_FUNC_CTOT_MANUAL = 1;
 const int TAG_FUNC_CTOT_ASSIGN = 2;
 const int TAG_FUNC_CTOT_MANUAL_FINISH = 10;
@@ -109,7 +110,8 @@ CUAEController::CUAEController(void)
 	RegisterTagItemFunction("Assign Stand", TAG_FUNC_ASSIGN_POPUP);
 	RegisterTagItemFunction("Clear", TAG_FUNC_CLEAR);
 	RegisterTagItemType("RouteValid", TAG_ITEM_ROUTE_VALID);
-	RegisterTagItemFunction("Get routes", TAG_FUNC_ROUTING);
+	RegisterTagItemFunction("Get routes (mandatory)", TAG_FUNC_ROUTING);
+	RegisterTagItemFunction("Get routes (optional)", TAG_FUNC_ROUTING_OPT);
 	RegisterTagItemType("CTOT", TAG_ITEM_CTOT);
 	RegisterTagItemType("T/O sequence", TAG_ITEM_Sequence);
 	RegisterTagItemType("TOBT", TAG_ITEM_TOBT);
@@ -2017,7 +2019,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	{
 		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
 			break;
-		std::string handlername = "Route for ";
+		std::string handlername = "Mandatory route for ";
 		handlername += fp.GetCallsign();
 		std::string dest = fpdata.GetDestination();
 		auto routes = routedatamandatory[fpdata.GetOrigin()].getDatafromICAO(dest);
@@ -2051,6 +2053,48 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			routing += " cruise level.";
 			DisplayUserMessage(handlername.c_str(), "", routing.c_str(), true, true, true, true, true);
 		}
+
+		break;
+	}
+	case TAG_FUNC_ROUTING_OPT:
+	{
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
+		std::string handlername = "Optional route for ";
+		handlername += fp.GetCallsign();
+		std::string dest = fpdata.GetDestination();
+		auto routes = routedataoptional[fpdata.GetOrigin()].getDatafromICAO(dest);
+		if (routes.empty())
+		{
+			routes = routedataoptional[fpdata.GetOrigin()].getDatafromICAO(dest.substr(0, 2));
+			if (routes.empty())
+			{
+				routes = routedataoptional[fpdata.GetOrigin()].getDatafromICAO(dest.substr(0, 1));
+				if (routes.empty())
+					DisplayUserMessage(handlername.c_str(), "", "No route found", true, true, true, true, true);
+			}
+
+		}
+		for (auto temp : routes)
+		{
+			std::string routing = "Valid routes to ";
+			routing += dest;
+			routing += ": ";
+			routing += temp.mRoute;
+			routing += ". Flightlevel is ";
+			if (temp.mLevelR.empty())
+				routing += "not restricted";
+			else
+			{
+				routing += "restricted to ";
+				routing += temp.mLevelR;
+			}
+			routing += ". The direction of flight dictates an ";
+			routing += temp.mEvenOdd;
+			routing += " cruise level.";
+			DisplayUserMessage(handlername.c_str(), "", routing.c_str(), true, true, true, true, true);
+		}
+
 		break;
 	}
 	case TAG_FUNC_CTOT_MANUAL: // TAG function

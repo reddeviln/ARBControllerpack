@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.5.1"
+#define MY_PLUGIN_VERSION   "1.5.2"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -532,6 +532,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			else 
 			{
 				icaodesttype = getRouteRegion(routedataoptional, icaodep, icaodest);
+				if (icaodesttype == "?") return;
 				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);
 				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
 				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;

@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.5.2"
+#define MY_PLUGIN_VERSION   "1.5.3"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -531,6 +531,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			}
 			else 
 			{
+				if (icaodesttype.length() == 4)return;
 				icaodesttype = getRouteRegion(routedataoptional, icaodep, icaodest);
 				if (icaodesttype == "?") return;
 				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);

@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.5.3"
+#define MY_PLUGIN_VERSION   "1.5.4"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -374,6 +374,11 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				if (std::regex_search(type, match, re))
 				{
 					type = match.str(1);
+				}
+				else
+				{
+					std::string firsttype = type.substr(0, 4);
+					type = firsttype;
 				}
 			}
 			auto found = recatdict.find(type);

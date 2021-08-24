@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.5.4"
+#define MY_PLUGIN_VERSION   "1.5.5"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -521,7 +521,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			std::string icaodest = fpdata.GetDestination();
 			std::string icaodep = fpdata.GetOrigin();
 			std::string icaodesttype = getRouteRegion(routedatamandatory,icaodep, icaodest);
-			if (icaodesttype == "?")
+			if (strcmp(icaodesttype.c_str(), "?") ==0)
 			{
 				strcpy(sItemString, "?");
 				return;
@@ -529,21 +529,21 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			auto dt = routedatamandatory.at(icaodep).getDatafromICAO(icaodesttype);
 			std::string validmandatory = isFlightPlanValid(dt, fpdata.GetRoute(), fpdata.GetFinalAltitude());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
-			if (validmandatory != "o")
+			if (strcmp(validmandatory.c_str(), "o") != 0)
 			{
 				strcpy(sItemString, validmandatory.c_str());
 				return;
 			}
 			else 
 			{
-				if (icaodesttype.length() == 4)return;
+				if (icaodesttype.length() == 4) return;
 				icaodesttype = getRouteRegion(routedataoptional, icaodep, icaodest);
-				if (icaodesttype == "?") return;
+				if (strcmp(icaodesttype.c_str(), "?") == 0) return;
 				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);
 				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
 				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 				*pRGB = RGB(255, 191, 0);
-				if (validoptional == "o") return;
+				if (strcmp(validoptional.c_str(), "o") == 0) return;
 				strcpy(sItemString, validoptional.c_str());
 				return;
 			}
@@ -3268,8 +3268,11 @@ std::string CUAEController::getRouteRegion(std::unordered_map<std::string,RouteD
 	std::string returnvalue;
 	if (routedata.find(icaodep) == routedata.end())
 	{
-		
+		std::string logstring = "Couldnt find any routing information for departure airport ";
+		logstring += icaodep;
+		LOG_F(INFO, logstring.c_str());
 		returnvalue =  "?";
+		return returnvalue;
 	}
 
 

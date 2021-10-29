@@ -541,8 +541,15 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				if (strcmp(icaodesttype.c_str(), "?") == 0) return;
 				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);
 				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
-				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
-				*pRGB = RGB(255, 191, 0);
+				if (strcmp(validoptional.c_str(), "L") != 0)
+				{
+					*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+					*pRGB = RGB(255, 191, 0);
+				}
+				else
+				{
+					*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
+				}
 				if (strcmp(validoptional.c_str(), "o") == 0) return;
 				strcpy(sItemString, validoptional.c_str());
 				return;

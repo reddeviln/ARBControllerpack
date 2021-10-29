@@ -94,6 +94,10 @@ CUAEController::CUAEController(void)
 	size_t pos = dir.find(filename);
 	dir.replace(pos, filename.length(), "");
 	loguru::set_thread_name("UAEControllerpack");
+	loguru::set_fatal_handler([](const loguru::Message& message) {
+		std::string stack = loguru::stacktrace_as_stdstring(1);
+		LOG_F(ERROR, stack.c_str());
+		throw std::runtime_error(std::string(message.prefix) + message.message); });
 	//putting a logfile in place
 	std::string temp = dir + "UAEC.log";
 	loguru::add_file(temp.c_str(), loguru::Truncate, loguru::Verbosity_INFO);
@@ -541,7 +545,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				if (strcmp(icaodesttype.c_str(), "?") == 0) return;
 				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);
 				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
-				if (strcmp(validoptional.c_str(), "L") != 0)
+				if (strcmp(validoptional.c_str(), "L") != 0 || strcmp(validoptional.c_str(), "X") != 0)
 				{
 					*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 					*pRGB = RGB(255, 191, 0);

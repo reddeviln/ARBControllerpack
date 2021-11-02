@@ -90,10 +90,10 @@ CUAEController::CUAEController(void)
 		// Return or however you want to handle an error.
 	}
 	std::string dir(path);
-	std::string filename("UAEControllerpack.dll");
+	std::string filename("ARBControllerpack.dll");
 	size_t pos = dir.find(filename);
 	dir.replace(pos, filename.length(), "");
-	loguru::set_thread_name("UAEControllerpack");
+	loguru::set_thread_name("ARBControllerpack");
 	loguru::set_fatal_handler([](const loguru::Message& message) {
 		std::string stack = loguru::stacktrace_as_stdstring(1);
 		LOG_F(ERROR, stack.c_str());
@@ -101,7 +101,7 @@ CUAEController::CUAEController(void)
 	//putting a logfile in place
 	std::string temp = dir + "UAEC.log";
 	loguru::add_file(temp.c_str(), loguru::Truncate, loguru::Verbosity_INFO);
-	std::string logstring = "We successfully started UAEControllerPack version ";
+	std::string logstring = "We successfully started ARBControllerPack version ";
 	logstring += MY_PLUGIN_VERSION;
 	logstring += ". Great success!";
 	LOG_F(INFO, logstring.c_str());

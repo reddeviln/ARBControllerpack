@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
-#define MY_PLUGIN_VERSION   "1.5.6"
+#define MY_PLUGIN_VERSION   "1.5.7"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -1279,6 +1279,15 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		if (found != found2->second.end())
 		{
 			auto assignment = found->second;
+			char L = 'L';
+			auto wtc = fp.GetFlightPlanData().GetAircraftWtc();
+			if (wtc == L && assignment != "VIP")
+			{
+				std::string logstring;
+				logstring = "Detected GA Callsign " + callsign;
+				LOG_F(INFO, logstring.c_str());
+				goto GA;
+			}
 			if (assignment == "UAE")
 			{
 				std::regex uaecargo = std::regex(R"(UAE9\d{3})");
@@ -1288,7 +1297,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 					std::string logstring;
 					logstring = "Detected SkyCargo for Callsign " + callsign;
 					LOG_F(INFO, logstring.c_str());
-					goto CARGO;
+					goto CARGO1;
 				}
 				std::string logstring;
 				logstring = "Detected Emirates Callsign " + callsign;

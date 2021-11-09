@@ -3,7 +3,7 @@
 #include "UAEControllerpack2.h"
 #include "loguru.cpp"
 
-#define MY_PLUGIN_NAME      "Controller Pack UAEvACC"
+#define MY_PLUGIN_NAME      "Controller Pack ARBvACC"
 #define MY_PLUGIN_VERSION   "1.5.7"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
@@ -450,9 +450,10 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			std::regex reOMDB = std::regex(R"(\/STAND([A-Z]\d{1,2}))");
 			std::regex reOMSJ = std::regex(R"(\/STAND(\d{1,2}[A-Z]?))");
 			std::regex reOMAA1 = std::regex(R"(\/STAND(\d{1,3}))");
+			std::regex reOOMS = std::regex(R"(\/STAND(\d{1,3}))");
 			std::regex reOMAA2 = std::regex(R"(\/STAND(GA))");
 			std::smatch match;
-			if ((std::regex_search(remarks, match, reOMDB) && strcmp(dest, "OMDB") == 0) || (std::regex_search(remarks, match, reOMSJ) && strcmp(dest, "OMSJ") == 0) || ((std::regex_search(remarks, match, reOMAA1) || std::regex_search(remarks, match, reOMAA2)) && strcmp(dest, "OMAA") == 0))
+			if ((std::regex_search(remarks, match, reOOMS) && strcmp(dest, "OOMS") == 0) || (std::regex_search(remarks, match, reOMDB) && strcmp(dest, "OMDB") == 0) || (std::regex_search(remarks, match, reOMSJ) && strcmp(dest, "OMSJ") == 0) || ((std::regex_search(remarks, match, reOMAA1) || std::regex_search(remarks, match, reOMAA2)) && strcmp(dest, "OMAA") == 0))
 			{
 				auto stand = match.str(1);
 				auto found2 = data.find(icao);
@@ -1047,6 +1048,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			return;
 		if (strcmp(dest, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
+		if (strcmp(dest, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
+			return;
 		if (strcmp(dest, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
 			return;
 		LOG_F(INFO, "Aircraft can be modified. We are processing aircraft: ");
@@ -1210,7 +1213,17 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			remarks = std::regex_replace(remarks, std::regex(R"(\/STAND\d{1,3})"), "");
 			remarks = std::regex_replace(remarks, std::regex(R"(\/STANDGA)"), "");
 		}
-
+		else if (strcmp(dest, "OOMS") == 0)
+			remarks = std::regex_replace(remarks, std::regex(R"(\/STAND\d{1,3})"), "");
+		else
+		{
+			std::string logstring = "Couldn't clear stand for aircraft ";
+			logstring += fp.GetCallsign();
+			logstring += " because ";
+			logstring += dest;
+			logstring += " was not found in the list. Ask Nils to add it to the code.";
+			LOG_F(WARNING, logstring.c_str());
+		}
 		fpdata.SetRemarks(remarks.c_str());
 		bool successful = fpdata.AmendFlightPlan();
 		if (successful)
@@ -1374,6 +1387,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
+		if (strcmp(icao, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
+			return;
 		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
 			return;
 		std::string logstring = "Processing aircraft: ";
@@ -1455,6 +1470,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
 			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
+			return;
+		if (strcmp(icao, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
 			return;
 		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
 			return;
@@ -1672,6 +1689,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::smatch match;
 		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
 			return;
+		if (strcmp(icao, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
+			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
 		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
@@ -1738,6 +1757,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::string remarks = fpdata.GetRemarks();
 		std::smatch match;
 		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
+			return;
+		if (strcmp(icao, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
 			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
@@ -1811,6 +1832,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::smatch match;
 		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
 			return;
+		if (strcmp(icao, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
+			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
 		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
@@ -1878,6 +1901,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::smatch match;
 		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
 			return;
+		if (strcmp(icao, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
+			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
 		if (strcmp(icao, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
@@ -1944,6 +1969,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::string remarks = fpdata.GetRemarks();
 		std::smatch match;
 		if (strcmp(icao, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
+			return;
+		if (strcmp(icao, "OOMS") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")))
 			return;
 		if (strcmp(icao, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
@@ -3032,6 +3059,11 @@ void CUAEController::cleanupStands()
 		{
 			re = std::regex(R"(\/STAND(\d{1,3}))");
 			re1 = std::regex(R"(\/STAND(GA))");
+		}
+		if (airport == "OOMS")
+		{
+			re = std::regex(R"(\/STAND(\d{1,3}))");
+			re1 = re;
 		}
 		for (auto& it : data.at(airport))
 		{

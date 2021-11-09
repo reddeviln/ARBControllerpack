@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack ARBvACC"
-#define MY_PLUGIN_VERSION   "1.5.7"
+#define MY_PLUGIN_VERSION   "2.0"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -61,7 +61,7 @@ std::unordered_map<std::string, std::vector<Stand>> standsOverflow;
 std::unordered_map<std::string, std::vector<Stand>> standsABY;
 std::unordered_map<std::string, std::vector<Stand>> standsETD;
 std::unordered_map<std::string, std::vector<Stand>> standsCargoSpecial;
-std::vector<std::string> activeAirports;
+std::vector<Airport> activeAirports;
 std::unordered_map<std::string, RouteData> routedataoptional;
 std::unordered_map<std::string, RouteData> routedatamandatory;
 //Constructor (run at plugin load)
@@ -99,7 +99,7 @@ CUAEController::CUAEController(void)
 		LOG_F(ERROR, stack.c_str());
 		throw std::runtime_error(std::string(message.prefix) + message.message); });
 	//putting a logfile in place
-	std::string temp = dir + "UAEC.log";
+	std::string temp = dir + "ARBC.log";
 	loguru::add_file(temp.c_str(), loguru::Truncate, loguru::Verbosity_INFO);
 	std::string logstring = "We successfully started ARBControllerPack version ";
 	logstring += MY_PLUGIN_VERSION;
@@ -161,6 +161,34 @@ CUAEController::CUAEController(void)
 	///////////////////////////////////////////////////////////////////////////////////
 	//-------------------------------------------2. All Airport stands and mappings
 	////////////////////////////////////////////////////////////////////////////////////
+	std::string airportdir = directory;
+	airportdir += "airports.csv";
+	io::CSVReader<5, io::trim_chars<' '>, io::double_quote_escape<';','\"'>> inAirport(airportdir);
+	inAirport.read_header(io::ignore_extra_column, "ICAO", "Regex1","Regex2","Regex3","Regex4");
+	std::string airport, regex1, regex2,regex3,regex4;
+	while (inAirport.read_row(airport, regex1, regex2,regex3,regex4))
+	{
+		if (strcmp(regex1.c_str(), "NONE") == 0)
+		{
+			std::string logstring = "No regex was specified for airport ";
+			logstring += airport;
+			logstring += ". Ignoring it.";
+			LOG_F(WARNING, logstring.c_str());
+			continue;
+		}
+		std::vector<std::string> regexs;
+		regexs.push_back(regex1);
+		if (strcmp(regex2.c_str(), "NONE") != 0)
+			regexs.push_back(regex2);
+		if (strcmp(regex3.c_str(), "NONE") != 0)
+			regexs.push_back(regex3);		
+		if (strcmp(regex4.c_str(), "NONE") != 0)
+			regexs.push_back(regex4);
+		
+		Airport temp = Airport(airport, regexs);
+		activeAirports.push_back(temp);
+	}
+	LOG_F(INFO, "Airport regexes read successfully.");
 	std::regex icao(R"(.*\\([A-Z]{4}))");
 	for (auto entry : std::filesystem::directory_iterator(directory))
 	{
@@ -183,7 +211,6 @@ CUAEController::CUAEController(void)
 				{
 					readStandFile(standpath.string(), m.str(1));
 					readCallsignFile(callsignpath.string(), m.str(1));
-					activeAirports.push_back(m.str(1));
 					std::string logstring;
 					logstring = "Successfully parsed stand data for ";
 					logstring += m[0];
@@ -196,7 +223,7 @@ CUAEController::CUAEController(void)
 					logstring = "Not all required csv files found for ";
 					logstring += m[0];
 					logstring += ". Skipping this airport ...";
-					LOG_F(INFO, logstring.c_str());
+					LOG_F(WARNING, logstring.c_str());
 				}
 			}
 		}
@@ -204,7 +231,7 @@ CUAEController::CUAEController(void)
 	//data handling of parsed stands
 	for (auto airport : activeAirports)
 	{
-		auto found = data.find(airport);
+		auto found = data.find(airport.m_icao);
 		if (found == data.end()) break;
 		std::vector<Stand> thisstandsUAE;
 		std::vector<Stand> thisstandsABY;
@@ -267,25 +294,25 @@ CUAEController::CUAEController(void)
 
 
 		}
-		std::pair<std::string, std::vector<Stand>> temp(airport, thisstandsUAE);
+		std::pair<std::string, std::vector<Stand>> temp(airport.m_icao, thisstandsUAE);
 		standsUAE.insert(temp);
-		std::pair<std::string, std::vector<Stand>> temp2(airport, thisstandsABY);
+		std::pair<std::string, std::vector<Stand>> temp2(airport.m_icao, thisstandsABY);
 		standsABY.insert(temp2);
-		std::pair<std::string, std::vector<Stand>> temp3(airport, thisstandsPAX);
+		std::pair<std::string, std::vector<Stand>> temp3(airport.m_icao, thisstandsPAX);
 		standsPAX.insert(temp3);
-		std::pair<std::string, std::vector<Stand>> temp4(airport, thisstandsCARGO);
+		std::pair<std::string, std::vector<Stand>> temp4(airport.m_icao, thisstandsCARGO);
 		standsCARGO.insert(temp4);
-		std::pair<std::string, std::vector<Stand>> temp5(airport, thisstandsCARGOspec);
+		std::pair<std::string, std::vector<Stand>> temp5(airport.m_icao, thisstandsCARGOspec);
 		standsCargoSpecial.insert(temp5);
-		std::pair<std::string, std::vector<Stand>> temp6(airport, thisstandsLOWCOST);
+		std::pair<std::string, std::vector<Stand>> temp6(airport.m_icao, thisstandsLOWCOST);
 		standsLOWCOST.insert(temp6);
-		std::pair<std::string, std::vector<Stand>> temp7(airport, thisstandsGA);
+		std::pair<std::string, std::vector<Stand>> temp7(airport.m_icao, thisstandsGA);
 		standsGA.insert(temp7);
-		std::pair<std::string, std::vector<Stand>> temp8(airport, thisstandsVIP);
+		std::pair<std::string, std::vector<Stand>> temp8(airport.m_icao, thisstandsVIP);
 		standsVIP.insert(temp8);
-		std::pair<std::string, std::vector<Stand>> temp9(airport, thisstandsOverflow);
+		std::pair<std::string, std::vector<Stand>> temp9(airport.m_icao, thisstandsOverflow);
 		standsOverflow.insert(temp9);
-		std::pair<std::string, std::vector<Stand>> temp10(airport, thisstandsETD);
+		std::pair<std::string, std::vector<Stand>> temp10(airport.m_icao, thisstandsETD);
 		standsETD.insert(temp10);
 
 	}
@@ -732,7 +759,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				TOBT = m_sequence_OMAA[idx].TOBT;
 			CTime curr;
 			curr = CTime::GetCurrentTime();
-			tm currt, currt1;
+			tm currt;
 			curr.GetGmtTm(&currt);
 			CString temp1;
 			tm t;
@@ -897,13 +924,16 @@ inline  bool CUAEController::OnCompileCommand(const char * sCommandLine)
 		for (auto airport : activeAirports)
 		{
 			std::string out;
-			auto found = data.find(airport);
+			auto found = data.find(airport.m_icao);
 			for (auto it : found->second)
 			{
 				if (!it.second.isEmpty || it.second.isAssigned)
+				{
 					out += it.first;
+					out += " ";
+				}
 			}
-			DisplayUserMessage("Occupied Stands", airport.c_str(), out.c_str(), true, true, true, true, true);
+			DisplayUserMessage("Occupied Stands", airport.m_icao.c_str(), out.c_str(), true, true, true, true, true);
 		}
 
 
@@ -917,96 +947,20 @@ void CUAEController::OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget r
 	{
 		if (rt.GetPosition().GetPressureAltitude() > 1000) return;
 		auto position = rt.GetPosition().GetPosition();
-		auto stand = getStandOfAircraft(position);
-		auto icao = stand.mICAO;
-		auto found = data.find(icao);
-		if (found == data.end()) return;
-		if (stand.number != "ZZZ") {
-			found->second.at(stand.number).isEmpty = false;
-			auto mystand = found->second.at(stand.number);
-			auto code = mystand.mAirlinecode;
-			if (code == "UAE")
-			{
-				for (auto &temp : standsUAE.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "ETD")
-			{
-				for (auto &temp : standsETD.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "ABY" || code == "PAX")
-			{
-				for (auto &temp : standsABY.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "PAX" || code == "ABY")
-			{
-				for (auto &temp : standsPAX.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "CARGO1")
-			{
-				for (auto &temp : standsCargoSpecial.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "CARGO" || code == "CLC")
-			{
-				for (auto &temp : standsCARGO.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-
-			if (code == "LWC" || code == "CLC")
-			{
-				for (auto &temp : standsLOWCOST.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "GA")
-			{
-				for (auto &temp : standsGA.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "VIP")
-			{
-				for (auto &temp : standsVIP.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
-			}
-			if (code == "ALL")
-			{
-				for (auto &temp : standsOverflow.at(icao))
-				{
-					if (temp.number == mystand.number)
-						temp.isEmpty = false;
-				}
+		auto standlist = getStandOfAircraft(position);
+		for (auto stand : standlist)
+		{
+			auto icao = stand.mICAO;
+			auto found = data.find(icao);
+			if (found == data.end()) return;
+			if (stand.number != "ZZZ") {
+				found->second.at(stand.number).isEmpty = false;
+				auto mystand = found->second.at(stand.number);
+				auto code = mystand.mAirlinecode;
+				markStandsasOccupied(mystand, code, icao);
 			}
 		}
+		
 	}
 }
 inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemString, POINT Pt, RECT Area)
@@ -2407,23 +2361,27 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	}// switch by the function ID
 }
 //--------------------------Helper functions-----------------------------------------
-Stand CUAEController::getStandOfAircraft(EuroScopePlugIn::CPosition position)
+std::vector<Stand> CUAEController::getStandOfAircraft(EuroScopePlugIn::CPosition position)
 {
+	std::vector<Stand> returnvalue;
+	returnvalue.push_back(Stand("ZZZ", "N000-00-00.0", "E000-00-00.0", "PAX", "", "", "F", "yes", "OMDB"));
 	for (auto airport : activeAirports)
 	{
-		auto found = data.find(airport);
+		auto found = data.find(airport.m_icao);
 		if (found == data.end()) continue;
 		for (auto stand : found->second)
 		{
 			auto distance = position.DistanceTo(stand.second.position);
 			if (distance < TOL)
-				return stand.second;
+			{
+				returnvalue.push_back(stand.second);
+			}
+				
 			if (distance > 5)
 				break;
 		}
 	}
-	Stand empty("ZZZ", "N000-00-00.0", "E000-00-00.0", "PAX", "", "", "F", "yes", "OMDB");
-	return empty;
+	return returnvalue;
 }
 void CUAEController::assignCTOT(bool asap, EuroScopePlugIn::CFlightPlan flightplan)
 {
@@ -3044,174 +3002,168 @@ void CUAEController::cleanupStands()
 	int j = 0;
 	for (auto airport : activeAirports)
 	{
-		std::regex re, re1;
-		if (airport == "OMDB")
+		for (auto& it : data.at(airport.m_icao))
 		{
-			re = std::regex(R"(\/STAND([A-Z]\d{1,2}))");
-			re1 = re;
-		}
-		if (airport == "OMSJ")
-		{
-			re = std::regex(R"(\/STAND(\d{1,2}[A-Z]?))");
-			re1 = re;
-		}
-		if (airport == "OMAA")
-		{
-			re = std::regex(R"(\/STAND(\d{1,3}))");
-			re1 = std::regex(R"(\/STAND(GA))");
-		}
-		if (airport == "OOMS")
-		{
-			re = std::regex(R"(\/STAND(\d{1,3}))");
-			re1 = re;
-		}
-		for (auto& it : data.at(airport))
-		{
+			
 
-			if (!it.second.isEmpty)
-			{
-				auto first = RadarTargetSelectFirst();
-				if (first.GetPosition().GetPosition().DistanceTo(it.second.position) < TOL)
-					goto outer2;
-				auto temp = RadarTargetSelectNext(first);
-				while (temp.IsValid())
+				if (!it.second.isEmpty)
 				{
-					if (temp.GetPosition().GetPosition().DistanceTo(it.second.position) < TOL)
-					{
+					auto first = RadarTargetSelectFirst();
+					if (first.GetPosition().GetPosition().DistanceTo(it.second.position) < TOL)
 						goto outer2;
-					}
-
-					temp = RadarTargetSelectNext(temp);
-				}
-				i++;
-				it.second.isEmpty = true;
-				std::string logstring = "Stand ";
-				logstring += it.second.number;
-				logstring += " is now emtpy again.";
-				LOG_F(INFO, logstring.c_str());
-			}
-			if (it.second.isAssigned)
-			{
-				auto first = FlightPlanSelectFirst();
-				
-				std::string remarks = first.GetFlightPlanData().GetRemarks();
-				std::smatch match,match1;
-				if (std::regex_search(remarks, match, re) || std::regex_search(remarks, match1, re1))
-				{
-					if (it.second.number == match.str(1) || it.second.number == match1.str(1))
-						goto outer2;
-				}
-				auto temp = FlightPlanSelectNext(first);
-				while (temp.IsValid())
-				{
-					remarks = temp.GetFlightPlanData().GetRemarks();
-					if (std::regex_search(remarks, match, re) || std::regex_search(remarks, match1, re1))
+					auto temp = RadarTargetSelectNext(first);
+					while (temp.IsValid())
 					{
-						if (it.second.number == match.str(1) || it.second.number == match1.str(1))
+						if (temp.GetPosition().GetPosition().DistanceTo(it.second.position) < TOL)
+						{
 							goto outer2;
-					}
-					temp = FlightPlanSelectNext(temp);
-				}
-				it.second.isAssigned = false;
-				j++;
-				std::string logstring = "Stand ";
-				logstring += it.second.number;
-				logstring += " no longer assigned. Removing it...";
-				LOG_F(INFO, logstring.c_str());
-				for (auto &temp : standmapping.at(airport))
-				{
-					if (temp.second.number == it.second.number)
-						standmapping.at(airport).erase(temp.first);
-				}
-				std::string code = it.second.mAirlinecode;
-				if (code == "UAE")
-				{
-					for (auto &temp : standsUAE.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
-				if (code == "ETD")
-				{
-					for (auto &temp : standsETD.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
-				if (code == "PAX" || code == "ABY")
-				{
-					for (auto &temp : standsPAX.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
-				if (code == "ABY" || code == "PAX")
-				{
-					for (auto &temp : standsABY.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
-				if (code == "CARGO1")
-				{
-					for (auto &temp : standsCargoSpecial.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
+						}
 
-				if (code == "CARGO" || code == "CLC")
-				{
-					for (auto &temp : standsCARGO.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
+						temp = RadarTargetSelectNext(temp);
 					}
+					i++;
+					it.second.isEmpty = true;
+					std::string logstring = "Stand ";
+					logstring += it.second.number;
+					logstring += " is now empty again.";
+					LOG_F(INFO, logstring.c_str());
 				}
+				if (it.second.isAssigned)
+				{
+					
+						auto first = FlightPlanSelectFirst();
 
-				if (code == "LWC" || code == "CLC")
+						std::string remarks = first.GetFlightPlanData().GetRemarks();
+						std::smatch match;
+						for (auto regex : airport.m_standregex)
+						{
+							if (std::regex_search(remarks, match, regex))
+							{
+								if (it.second.number == match.str(1))
+									goto outer2;
+							}
+						}
+						auto temp = FlightPlanSelectNext(first);
+						while (temp.IsValid())
+						{
+							remarks = temp.GetFlightPlanData().GetRemarks();
+							for (auto regex : airport.m_standregex)
+							{
+								if (std::regex_search(remarks, match, regex))
+								{
+									if (it.second.number == match.str(1))
+										goto outer2;
+								}
+							}
+							temp = FlightPlanSelectNext(temp);
+						}
+						it.second.isAssigned = false;
+						j++;
+						std::string logstring = "Stand ";
+						logstring += it.second.number;
+						logstring += " no longer assigned. Removing it...";
+						LOG_F(INFO, logstring.c_str());
+						for (auto &temp : standmapping.at(airport.m_icao))
+						{
+							if (temp.second.number == it.second.number)
+							{
+								standmapping.at(airport.m_icao).erase(temp.first);
+							}
+								
+						}
+						std::string code = it.second.mAirlinecode;
+						if (code == "UAE")
+						{
+							for (auto &temp : standsUAE.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "ETD")
+						{
+							for (auto &temp : standsETD.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "PAX" || code == "ABY")
+						{
+							for (auto &temp : standsPAX.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "ABY" || code == "PAX")
+						{
+							for (auto &temp : standsABY.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "CARGO1")
+						{
+							for (auto &temp : standsCargoSpecial.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
 
-				{
-					for (auto &temp : standsLOWCOST.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
-				if (code == "GA")
-				{
-					for (auto &temp : standsGA.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
-				if (code == "VIP")
-				{
-					for (auto &temp : standsVIP.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
-				if (code == "ALL")
-				{
-					for (auto &temp : standsOverflow.at(airport))
-					{
-						if (temp.number == it.second.number)
-							temp.isAssigned = false;
-					}
-				}
+						if (code == "CARGO" || code == "CLC")
+						{
+							for (auto &temp : standsCARGO.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
 
-			}
-		outer2:
-			continue;
+						if (code == "LWC" || code == "CLC")
+
+						{
+							for (auto &temp : standsLOWCOST.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "GA")
+						{
+							for (auto &temp : standsGA.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "VIP")
+						{
+							for (auto &temp : standsVIP.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+						if (code == "ALL")
+						{
+							for (auto &temp : standsOverflow.at(airport.m_icao))
+							{
+								if (temp.number == it.second.number)
+									temp.isAssigned = false;
+							}
+						}
+					
+
+				}
+			outer2:
+				continue;
+			
 		}
+		
+		
 		
 	}
 
@@ -3275,6 +3227,8 @@ char CUAEController::determineAircraftCat(EuroScopePlugIn::CFlightPlan fp)
 			return 'E';
 		if (wtc == 'M')
 			return 'C';
+		LOG_F(ERROR, "Something went very wrong. Aircraft WTC could not be determined.");
+		return 'E';
 	}
 }
 void CUAEController::readStandFile(std::string dir, std::string airport)
@@ -3387,4 +3341,89 @@ std::string CUAEController::getRouteRegion(std::unordered_map<std::string,RouteD
 		}
 	}
 	return returnvalue;
+}
+
+void markStandsasOccupied(Stand mystand,std::string code, std::string icao)
+{
+	if (code == "UAE")
+	{
+		for (auto &temp : standsUAE.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "ETD")
+	{
+		for (auto &temp : standsETD.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "ABY" || code == "PAX")
+	{
+		for (auto &temp : standsABY.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "PAX" || code == "ABY")
+	{
+		for (auto &temp : standsPAX.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "CARGO1")
+	{
+		for (auto &temp : standsCargoSpecial.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "CARGO" || code == "CLC")
+	{
+		for (auto &temp : standsCARGO.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+
+	if (code == "LWC" || code == "CLC")
+	{
+		for (auto &temp : standsLOWCOST.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "GA")
+	{
+		for (auto &temp : standsGA.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "VIP")
+	{
+		for (auto &temp : standsVIP.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
+	if (code == "ALL")
+	{
+		for (auto &temp : standsOverflow.at(icao))
+		{
+			if (temp.number == mystand.number)
+				temp.isEmpty = false;
+		}
+	}
 }

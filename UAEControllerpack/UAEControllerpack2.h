@@ -154,6 +154,7 @@ public:
 			}
 			return returnval;
 		}
+		return returnval;
 	}
 	bool isRouteValid(std::string Route)
 	{
@@ -322,6 +323,31 @@ public:
 	}
 
 };
+class Airport
+{
+	//stores the airport regex data
+public:
+	std::string m_icao;
+	std::vector<std::regex> m_standregex;
+	Airport(std::string icao, std::vector<std::string> standregex)
+	{
+		m_icao = icao;
+		for (auto elem : standregex)
+		{
+			auto temp = std::regex(elem);
+			m_standregex.push_back(temp);
+		}
+	}
+	bool operator==(std::string rhs)
+		//overwriting the == and < operator to make use of the STL algorithms for sorting and finding lateron
+	{
+		if (this->m_icao == rhs)
+		{
+			return true;
+		}
+		return false;
+	}
+};
 
 class CUAEController :
 	//The class that holds all our functions 
@@ -403,7 +429,7 @@ public:
 	Stand extractRandomStand(std::vector<Stand> stands, char size, std::string icao);
 	std::string getRouteRegion(std::unordered_map<std::string, RouteData> routedata, std::string icadep, std::string icaodest);
 	char determineAircraftCat(EuroScopePlugIn::CFlightPlan);
-	Stand getStandOfAircraft(EuroScopePlugIn::CPosition position);
+	std::vector<Stand> getStandOfAircraft(EuroScopePlugIn::CPosition position);
 	void readStandFile(std::string dir, std::string airport);
 
 	void readCallsignFile(std::string dir, std::string airport);
@@ -437,4 +463,4 @@ public:
 	   The function recalculates all CTOTs that follow the "inserted" so the modified one.
 	*/
 };
-
+void markStandsasOccupied(Stand mystand, std::string code, std::string icao);

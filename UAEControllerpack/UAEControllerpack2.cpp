@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack ARBvACC"
-#define MY_PLUGIN_VERSION   "2.0"
+#define MY_PLUGIN_VERSION   "2.0.1"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -17,6 +17,7 @@ const int TAG_ITEM_ROUTE_VALID = 123123;
 const int TAG_ITEM_RECAT = 155;
 const int TAG_ITEM_RECAT_NOSLASH = 12341;
 const int TAG_ITEM_STAND = 1548915;
+const int TAG_ITEM_COPXSHORT = 524865;
 
 //Functions
 const int TAG_FUNC_EDIT = 423;
@@ -119,6 +120,7 @@ CUAEController::CUAEController(void)
 	RegisterTagItemType("CTOT", TAG_ITEM_CTOT);
 	RegisterTagItemType("T/O sequence", TAG_ITEM_Sequence);
 	RegisterTagItemType("TOBT", TAG_ITEM_TOBT);
+	RegisterTagItemType("COPX Short form/Destination", TAG_ITEM_COPXSHORT);
 	RegisterTagItemFunction("Assign CTOT", TAG_FUNC_CTOT_ASSIGN);
 	RegisterTagItemFunction("Edit CTOT", TAG_FUNC_CTOT_MANUAL);
 	m_TOSequenceList = RegisterFpList("T/O Sequence List");
@@ -862,6 +864,18 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			strcpy(sItemString, temp3);
 			break;
 		}
+		case TAG_ITEM_COPXSHORT:
+		{
+			std::string copx = FlightPlan.GetNextFirCopxPointName();
+			std::string dest = fpdata.GetDestination();
+			if (copx.empty())
+			{
+				strcpy(sItemString, dest.substr(2, 3).c_str());
+				return;
+			}
+			strcpy(sItemString, copx.substr(0, 3).c_str());
+			return;
+		}
 	}
 }
 std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, std::string Route, int level)
@@ -998,7 +1012,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		std::string remarks = fpdata.GetRemarks();
 		auto dest = fp.GetFlightPlanData().GetDestination();
 		std::smatch match;
-		if (strcmp(dest, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
+		/* (strcmp(dest, "OMDB") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND[A-Z]\d{1,2})")))
 			return;
 		if (strcmp(dest, "OMSJ") == 0 && std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,2}[A-Z]?)")))
 			return;
@@ -1006,6 +1020,18 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			return;
 		if (strcmp(dest, "OMAA") == 0 && (std::regex_search(remarks, match, std::regex(R"(\/STAND\d{1,3})")) || std::regex_search(remarks, match, std::regex(R"(\/STANDGA)"))))
 			return;
+			*/
+		for (auto airport : activeAirports)
+		{
+			if (strcmp(dest, airport.m_icao.c_str()) == 0)
+			{
+				for (auto re : airport.m_standregex)
+				{
+					if (std::regex_search(remarks, match, re))
+						return;
+				}
+			}
+		}
 		LOG_F(INFO, "Aircraft can be modified. We are processing aircraft: ");
 		LOG_F(INFO, fp.GetCallsign());
 		std::string input = sItemString;

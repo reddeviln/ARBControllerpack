@@ -426,6 +426,7 @@ public:
 	inline  virtual void    OnTimer(int Counter);
 
 	void cleanupStands();
+	bool isDestValid(std::string callsign, EuroScopePlugIn::CFlightPlanData data);
 	Stand extractRandomStand(std::vector<Stand> stands, char size, std::string icao);
 	std::string getRouteRegion(std::unordered_map<std::string, RouteData> routedata, std::string icadep, std::string icaodest);
 	char determineAircraftCat(EuroScopePlugIn::CFlightPlan);

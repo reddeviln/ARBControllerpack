@@ -18,6 +18,7 @@ const int TAG_ITEM_RECAT = 155;
 const int TAG_ITEM_RECAT_NOSLASH = 12341;
 const int TAG_ITEM_STAND = 1548915;
 const int TAG_ITEM_COPXSHORT = 524865;
+const int TAG_ITEM_APPSHORT = 58426;
 
 //Functions
 const int TAG_FUNC_EDIT = 423;
@@ -65,6 +66,7 @@ std::unordered_map<std::string, std::vector<Stand>> standsCargoSpecial;
 std::vector<Airport> activeAirports;
 std::unordered_map<std::string, RouteData> routedataoptional;
 std::unordered_map<std::string, RouteData> routedatamandatory;
+std::unordered_map<std::string, std::string> abb;
 //Constructor (run at plugin load)
 CUAEController::CUAEController(void)
 	: CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
@@ -123,6 +125,7 @@ CUAEController::CUAEController(void)
 	RegisterTagItemType("COPX Short form/Destination", TAG_ITEM_COPXSHORT);
 	RegisterTagItemFunction("Assign CTOT", TAG_FUNC_CTOT_ASSIGN);
 	RegisterTagItemFunction("Edit CTOT", TAG_FUNC_CTOT_MANUAL);
+	RegisterTagItemType("Shortening of SID/arriving airport", TAG_ITEM_APPSHORT);
 	m_TOSequenceList = RegisterFpList("T/O Sequence List");
 	if (m_TOSequenceList.GetColumnNumber() == 0)
 	{
@@ -360,6 +363,23 @@ CUAEController::CUAEController(void)
 		routedatamandatory.at(depicao).icaos.push_back(Dest);
 	}
 	LOG_F(INFO, "Route file mandatory parsed successfully.");
+	//////////////////////////////////////////////////////////////////////////////////////////
+	//-----------------------------4. diverse files--------------------------------------
+	//////////////////////////////////////////////////////////////////////////////////
+	dir = directory;
+	dir += "abbreviations.csv";
+	if (!this->fileExists(dir))
+	{
+		LOG_F(WARNING, "Abbreviations file not found. Tag items will not be available.");
+		return;
+	}
+	io::CSVReader<2, io::trim_chars<' '>, io::no_quote_escape<','>> in10(dir);
+	std::string Long, Short;
+	in10.read_header(io::ignore_extra_column, "LONG", "SHORT");
+	while (in10.read_row(Long, Short))
+	{
+		abb.insert(std::pair(Long, Short));
+	}
 	LOG_F(INFO, "Done file reading.");
 }
 //Destructor
@@ -875,6 +895,45 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			}
 			strcpy(sItemString, copx.substr(0, 3).c_str());
 			return;
+		}
+		case TAG_ITEM_APPSHORT:
+		{
+			std::string dest = fpdata.GetDestination();
+			if (abb.empty())
+			{
+				strcpy(sItemString, "ERR");
+				return;
+			}
+			auto found = abb.find(dest);
+			if (found != abb.end())
+			{
+				strcpy(sItemString, found->second.c_str());
+				return;
+			}
+			else
+			{
+				std::string SID = fpdata.GetSidName();
+				if (SID.length() < 7)
+				{
+					std::string logstring = "The SID ";
+					logstring += SID;
+					logstring += " does not contain at least 7 characters and the destination was not in the UAE. Cant do a shorthand for that. Aircraft concerned: ";
+					logstring += FlightPlan.GetCallsign();
+					LOG_F(WARNING, logstring.c_str());
+					return;
+				}
+				std::string SIDpoint = SID.substr(0, 5);
+				auto found2 = abb.find(SIDpoint);
+				if (found2 != abb.end())
+				{
+					std::string output = found2->second;
+					output += SID.substr(5, 7);
+					strcpy(sItemString, output.c_str());
+					return;
+				}
+				strcpy(sItemString, "ERR");
+				return;
+			}
 		}
 	}
 }

@@ -597,7 +597,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				if (strcmp(icaodesttype.c_str(), "?") == 0) return;
 				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);
 				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
-				if (strcmp(validoptional.c_str(), "L") != 0 || strcmp(validoptional.c_str(), "X") != 0)
+				if (strcmp(validoptional.c_str(), "R") == 0)
 				{
 					*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
 					*pRGB = RGB(255, 191, 0);
@@ -1087,11 +1087,17 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 		LOG_F(INFO, "Aircraft can be modified. We are processing aircraft: ");
 		LOG_F(INFO, fp.GetCallsign());
 		std::string input = sItemString;
+		std::transform(input.begin(), input.end(), input.begin(), ::toupper);
 		
 		auto found = data.find(dest);
 		if (found == data.end()) return;
 		auto found2 = found->second.find(input);
-		if (found2 == found->second.end()) return;
+		if (found2 == found->second.end())
+		{
+			std::string logstring1 = "Stand " + input + " does not exist at "+dest+".";
+			DisplayUserMessage("ARBControllerpack", "", logstring1.c_str(), true, true, true, true, true);
+			return;
+		}
 		std::string logstring;
 		logstring = "Stand ";
 		logstring += found2->second.number;

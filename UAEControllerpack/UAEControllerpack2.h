@@ -10,6 +10,7 @@
 #include <string>
 #include <ctime>
 #include <algorithm>
+#include <cstring>
 #include <regex>
 #include "resource.h"
 #include <iostream>

@@ -350,6 +350,70 @@ public:
 	}
 };
 
+class Waypoint {
+	//stores one navdata waypoint
+public:
+	std::string m_name;
+	//first entry: airway name, second entry neighbor on that airway
+	std::unordered_map<std::string, std::string> m_connections;
+	//constructor
+	Waypoint(std::string name, std::string connectingairway, std::string neighbor)
+	{
+		m_name = name;
+		m_connections.insert(std::make_pair(connectingairway, neighbor));
+	}
+	void addConnection(std::string airway, std::string neighbor)
+	{
+		m_connections.insert(std::make_pair(airway, neighbor));
+	}
+	std::string getNextPointNameOnAirway(std::string airway)
+	{
+		auto found = m_connections.find(airway);
+		if (found == m_connections.end())
+			return "ERROR";
+		else
+			return found->second;
+	}
+	bool operator==(const Waypoint& rhs)
+	{
+		if (this->m_name == rhs.m_name)
+			return true;
+		else return false;
+	}
+	bool operator<(const Waypoint& rhs)
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
+	}
+private:
+
+};
+class Fixes {
+	//stores all waypoints
+public:
+	
+	Fixes(){};
+	void add_fix(Waypoint mypoint)
+	{
+		if (all_fixes.back().m_name == mypoint.m_name)
+		{
+			Waypoint temp = all_fixes.back();
+			temp.addConnection(mypoint.m_connections.begin()->first, mypoint.m_connections.begin()->second);
+			all_fixes.pop_back();
+			all_fixes.push_back(temp);
+		}
+		all_fixes.push_back(mypoint);
+	}
+	Waypoint find_waypoint(std::string name)
+	//finds a waypoint in the list by its name using binary search
+	{
+		Waypoint temp = Waypoint(name, "Z999", "ERROR");
+		auto itr = std::lower_bound(all_fixes.begin(), all_fixes.end(), temp);
+		int index = std::distance(all_fixes.begin(), itr);
+		return all_fixes.at(index);
+	}
+private:
+	std::vector<Waypoint> all_fixes;
+};
 class CUAEController :
 	//The class that holds all our functions 
 	public EuroScopePlugIn::CPlugIn

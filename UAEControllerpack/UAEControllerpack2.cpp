@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack ARBvACC"
-#define MY_PLUGIN_VERSION   "2.0.1"
+#define MY_PLUGIN_VERSION   "3.0.0"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -67,6 +67,7 @@ std::vector<Airport> activeAirports;
 std::unordered_map<std::string, RouteData> routedataoptional;
 std::unordered_map<std::string, RouteData> routedatamandatory;
 std::unordered_map<std::string, std::string> abb;
+Fixes fixes;
 //Constructor (run at plugin load)
 CUAEController::CUAEController(void)
 	: CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
@@ -149,7 +150,27 @@ CUAEController::CUAEController(void)
 	LOG_F(INFO, "Everything registered. Ready to go!");
 
 	//----------------------------------------Loading of all the different files--------------------------------------------
-
+	//0. Navdata 
+	std::string navdir = directory;
+	std::string from = "Plugins\\ARBControllerPack";
+	auto start_pos = navdir.find(from);
+	if (start_pos == std::string::npos)
+		LOG_F(ERROR, "Reinstall your sectorfile please directory setup does not match the expected.");
+	navdir.replace(start_pos, from.length(), "Navdata");
+	auto navfile = navdir + "airway.txt";
+	io::CSVReader<16, io::trim_chars<' ','\t'>, io::no_quote_escape<'\t'>, io::single_line_comment<';'>> navreader(navfile);
+	std::string name, lat1, long1, garbage, airway, highlow, prevPoint, lat2, long2, minAlt, pointprevOK, nextPoint, lat3, long3, minalt2,nextPointOK;
+	navreader.set_header(name, lat1, long1, garbage, airway, highlow, prevPoint, lat2, long2, minAlt, pointprevOK, nextPoint, lat3, long3, minalt2, nextPointOK);
+	LOG_F(INFO, "Start reading navdata this might take a bit ....");
+	while (navreader.read_row(name, lat1, long1, garbage, airway, highlow, prevPoint, lat2, long2, minAlt, pointprevOK, nextPoint, lat3, long3, minalt2, nextPointOK))
+	{
+		if (strcmp(nextPointOK.c_str(),"Y")==0)
+		{
+			Waypoint temp = Waypoint(name, airway, nextPoint);
+			fixes.add_fix(temp);
+		}
+	}
+	LOG_F(INFO, "Navdata reading complete. Very nice!");
 	//1. RECAT dictionary
 	dir += "RECAT.csv";
 	io::CSVReader<3, io::trim_chars<' '>, io::no_quote_escape<','>> in(dir);

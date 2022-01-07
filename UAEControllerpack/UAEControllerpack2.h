@@ -20,9 +20,95 @@
 #include <utility>
 #include <random>
 #include "TimerRadar.h"
+#include <stdexcept>
 #define INT_PART 4
 #define DEC_PART 3
 #pragma warning(disable : 4996)
+class Waypoint {
+	//stores one navdata waypoint
+public:
+	std::string m_name;
+	//first entry: airway name, second entry neighbor(s) on that airway
+	std::unordered_map<std::string, std::vector<std::string>> m_connections;
+	//constructor
+	Waypoint(std::string name)
+	{
+		m_name = name;
+	}
+	void addConnection(std::string airway, std::string neighbor)
+	{
+		auto found = m_connections.find(airway);
+		if (found == m_connections.end())
+		{
+			std::vector<std::string> neighborp;
+			neighborp.push_back(neighbor);
+			m_connections.insert(std::make_pair(airway,neighborp));
+		}
+		else
+		{
+			std::vector<std::string> neighborp = found->second;
+			neighborp.push_back(neighbor);
+			m_connections.at(found->first) = neighborp;
+		}
+	}
+	std::vector<std::string> getNextPointNameOnAirway(std::string airway)
+	{
+		std::vector<std::string> mypoints;
+		auto found = m_connections.find(airway);
+		if (found == m_connections.end())
+			mypoints.push_back("ERROR");
+		else
+		{
+			mypoints = found->second;
+		}
+		return mypoints;
+	}
+	bool operator==(const Waypoint& rhs)
+	{
+		if (this->m_name == rhs.m_name)
+			return true;
+		else return false;
+	}
+	bool operator<(const Waypoint& rhs)
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
+	}
+	bool operator<(const Waypoint& rhs) const
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
+	}
+private:
+
+};
+
+class Fixes {
+	//stores all waypoints
+public:
+
+	Fixes() {};
+	void add_fix(Waypoint mypoint)
+	{
+		if (all_fixes.empty())
+		{
+			all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+			return;
+		}
+		all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+	}
+	Waypoint find_waypoint(std::string name)
+		//finds a waypoint in the list by its name using binary search
+	{
+		auto found = all_fixes.find(name);
+		if (found == all_fixes.end()) 
+		{
+			return Waypoint("ERROR");;
+		}
+		return found->second;
+	}
+	
+private:
+	std::unordered_map<std::string,Waypoint> all_fixes;
+};
 
 class CTOTData
 	//this class is used as a storage. Each aircraft that gets a ctot assigned will be put in a CTOTData object. It contains the flightplan the CTOT and TOBT a switch if it was manually assigned
@@ -57,12 +143,16 @@ public:
 
 };
 
+void WayPointNotFound(std::string name, std::string dep, std::string dest);
+void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname, std::string dep, std::string dest);
+std::vector<Waypoint> parseATSPointsFromString(std::string route, std::string dep, std::string dest);
+
 class RouteTo
 	//This class stores the different standard routes to a destination icao.
 {
 public:
 	std::string mDEPICAO, mDestICAO, mEvenOdd, mLevelR, mRoute;
-	std::vector<std::string> endpoints;
+	std::vector<Waypoint> points;
 	RouteTo(std::string DepICAO, std::string DestICAO, std::string evenodd, std::string LevelR, std::string Route)
 	{
 		mDEPICAO = DepICAO;
@@ -70,12 +160,13 @@ public:
 		mEvenOdd = evenodd;
 		mLevelR = LevelR;
 		mRoute = Route;
-		RouteTo::test();
-
+		points = parseATSPointsFromString(Route, DepICAO, DestICAO);
 	}
 
 	bool isCruiseValid(int Flightlevel)
 	{
+		if (this->mEvenOdd == "ALL")
+			return true;
 		bool returnval = false;
 		if (Flightlevel > 40000)
 		{
@@ -156,21 +247,20 @@ public:
 			return returnval;
 		}
 		return returnval;
+		
 	}
 	bool isRouteValid(std::string Route)
 	{
-		auto temp = makeAirwaysUnique(findAndReplaceAll(Route, " DCT ", " "));
-		auto check = temp.find(mRoute);
-		if (check == std::string::npos)
+		std::vector<Waypoint> filedPoints = parseATSPointsFromString(Route, mDEPICAO, mDestICAO);
+		std::string waypointNameShould, waypointNameIs;
+		if (points.size() > filedPoints.size()) 
 		{
-			auto temp1 = findAndReplaceAll(mRoute, " DCT ", " ");
-			if (temp.find(temp1) == std::string::npos)
-				return false;
-			else
-				return true;
+			return false;				
 		}
-
-		else return true;
+		auto check = std::mismatch(points.begin(), points.end(), filedPoints.begin());
+		waypointNameIs = check.second->m_name;
+		waypointNameShould = check.first->m_name;
+		return points.end() == check.first;
 	}
 	static bool test()
 	{
@@ -349,71 +439,7 @@ public:
 		return false;
 	}
 };
-
-class Waypoint {
-	//stores one navdata waypoint
-public:
-	std::string m_name;
-	//first entry: airway name, second entry neighbor on that airway
-	std::unordered_map<std::string, std::string> m_connections;
-	//constructor
-	Waypoint(std::string name, std::string connectingairway, std::string neighbor)
-	{
-		m_name = name;
-		m_connections.insert(std::make_pair(connectingairway, neighbor));
-	}
-	void addConnection(std::string airway, std::string neighbor)
-	{
-		m_connections.insert(std::make_pair(airway, neighbor));
-	}
-	std::string getNextPointNameOnAirway(std::string airway)
-	{
-		auto found = m_connections.find(airway);
-		if (found == m_connections.end())
-			return "ERROR";
-		else
-			return found->second;
-	}
-	bool operator==(const Waypoint& rhs)
-	{
-		if (this->m_name == rhs.m_name)
-			return true;
-		else return false;
-	}
-	bool operator<(const Waypoint& rhs)
-	{
-		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
-	}
-private:
-
-};
-class Fixes {
-	//stores all waypoints
-public:
-	
-	Fixes(){};
-	void add_fix(Waypoint mypoint)
-	{
-		if (all_fixes.back().m_name == mypoint.m_name)
-		{
-			Waypoint temp = all_fixes.back();
-			temp.addConnection(mypoint.m_connections.begin()->first, mypoint.m_connections.begin()->second);
-			all_fixes.pop_back();
-			all_fixes.push_back(temp);
-		}
-		all_fixes.push_back(mypoint);
-	}
-	Waypoint find_waypoint(std::string name)
-	//finds a waypoint in the list by its name using binary search
-	{
-		Waypoint temp = Waypoint(name, "Z999", "ERROR");
-		auto itr = std::lower_bound(all_fixes.begin(), all_fixes.end(), temp);
-		int index = std::distance(all_fixes.begin(), itr);
-		return all_fixes.at(index);
-	}
-private:
-	std::vector<Waypoint> all_fixes;
-};
+void markStandsasOccupied(Stand mystand, std::string code, std::string icao);
 class CUAEController :
 	//The class that holds all our functions 
 	public EuroScopePlugIn::CPlugIn
@@ -529,4 +555,3 @@ public:
 	   The function recalculates all CTOTs that follow the "inserted" so the modified one.
 	*/
 };
-void markStandsasOccupied(Stand mystand, std::string code, std::string icao);

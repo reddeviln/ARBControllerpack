@@ -3526,7 +3526,7 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::string de
 	std::string buf;
 	std::vector<std::string> atsrouting;
 	std::vector<std::string> possibleDiff;
-	std::list<std::string> avoidPoint;
+	std::vector<std::string> avoidPoint;
 	//split string into vector on space
 	while (ss >> buf)
 		atsrouting.push_back(buf);
@@ -3554,17 +3554,24 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::string de
 				for (auto elem : pointsOnAirway)
 				{
 					sP = fixes.find_waypoint(elem);
+					if (sP.m_name == "ERROR")
+						WayPointNotFound(elem, dep, dest);
 					searchPoint = elem;
-					if (sP == points.back() || avoidPoint)
+					auto foundaP = std::find(avoidPoint.begin(), avoidPoint.end(), elem);
+					if (sP == points.back() || foundaP !=avoidPoint.end())
 						continue;
 					else
 						break;
 				}
+				points.push_back(sP);
 			}
 			if (pointsOnAirway.size() == 1 && pointsOnAirway.back() != "ERROR")
 			{
 				searchPoint = pointsOnAirway.back();
 				sP = fixes.find_waypoint(searchPoint);
+				if (sP.m_name == "ERROR")
+					WayPointNotFound(searchPoint, dep, dest);
+				points.push_back(sP);
 			}
 			else
 			{
@@ -3576,7 +3583,7 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::string de
 				sP = fixes.find_waypoint(searchPoint);
 			}
 		}
-
+		currentPoint += 2;
 	}
 	
 	return points;

@@ -42,13 +42,14 @@ public:
 		{
 			std::vector<std::string> neighborp;
 			neighborp.push_back(neighbor);
-			m_connections.insert(std::make_pair(airway,neighborp));
+			m_connections.emplace(std::make_pair(airway,neighborp));
 		}
 		else
 		{
 			std::vector<std::string> neighborp = found->second;
+			m_connections.erase(found);
 			neighborp.push_back(neighbor);
-			m_connections.at(found->first) = neighborp;
+			m_connections.emplace(std::make_pair(airway, neighborp));
 		}
 	}
 	std::vector<std::string> getNextPointNameOnAirway(std::string airway)
@@ -93,6 +94,9 @@ public:
 			all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
 			return;
 		}
+		auto found = all_fixes.find(mypoint.m_name);
+		if (found != all_fixes.end())
+			all_fixes.erase(found);
 		all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
 	}
 	Waypoint find_waypoint(std::string name)

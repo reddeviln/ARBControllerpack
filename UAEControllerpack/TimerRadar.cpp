@@ -4,24 +4,26 @@
 #include <mciapi.h>
 
 
-std::wstring thisdirectory;
+//std::wstring thisdirectory;
+std::string thisdirectory;
 std::string thisdirnorm;
 const int TIMER = 354864;
 CRect Timer(100, 100, 300, 200);
 int Timerleft, Timertop, Timerright, Timerbottom;
-std::wstring timeremaining(L"0:00");
+std::string timeremaining("0:00");
 int timeremainseconds;
 bool timervisible = true;
 bool timerrunning = false;
+//std::vector<std::wstring> times;
 std::vector<std::wstring> times;
 std::vector<int> timesint;
 time_t endTime = 0;
 
-TimerRadar::TimerRadar(std::wstring dir)
+TimerRadar::TimerRadar(std::string dir)
 {
-	using convert_type = std::codecvt_utf8<wchar_t>;
+	/*using convert_type = std::codecvt_utf8<wchar_t>;
 	std::wstring_convert<convert_type, wchar_t> converter;
-	thisdirnorm = converter.to_bytes(dir);
+	thisdirnorm = converter.to_bytes(dir);*/
 	if(Timerleft !=0 && Timertop != 0 && Timerright != 0 && Timerbottom != 0)
 		Timer.SetRect(Timerleft, Timertop, Timerright, Timerbottom);
 	thisdirectory = dir;
@@ -113,14 +115,14 @@ void TimerRadar::OnRefresh(HDC hDC, int Phase)
 		auto bottomright = Timer.BottomRight();
 		//draw line seperating timer from time options
 		
-
-		graphics.DrawLine(&mypen, topleft.x, topleft.y + height / 3, bottomright.x, topleft.y + height / 3);
+		
+		graphics.DrawLine(&mypen, (int)topleft.x, (int)topleft.y + height / 3,(int) bottomright.x, (int)topleft.y + height / 3);
 		//draw option seperating lines
 		for (int i = 1; i <= 5; i++)
 		{
 			graphics.DrawLine(&mypen, topleft.x + i * width / 5, int(topleft.y + height / 3), topleft.x + i * width / 5, bottomright.y);
 		}
-		graphics.DrawLine(&mypen, topleft.x, topleft.y + 2 * height / 3, bottomright.x, topleft.y + 2 * height / 3);
+		graphics.DrawLine(&mypen, (int)topleft.x, (int)topleft.y + 2 * height / 3,(int) bottomright.x, (int)topleft.y + 2 * height / 3);
 		AddScreenObject(TIMER, "timer", Timer, true, "");
 		Gdiplus::FontFamily   fontFamily(L"Consolas");
 		auto dpix = graphics.GetDpiX();
@@ -142,12 +144,13 @@ void TimerRadar::OnRefresh(HDC hDC, int Phase)
 		stringFormat.SetAlignment(Gdiplus::StringAlignmentCenter);
 		stringFormat.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 		timeremaining = (TimerRadar::GetCurrentTimeString(TimerRadar::GetSecondsRemaining())).str();
+		std::wstring wtime(timeremaining.begin(), timeremaining.end());
 		if (TimerRadar::GetSecondsRemaining() < 20 && TimerRadar::GetSecondsRemaining() >5)
-			graphics.DrawString(timeremaining.c_str(), -1, &fontrem, rectFrem, &stringFormat, &orangebrush);
+			graphics.DrawString(wtime.c_str(), -1, &fontrem, rectFrem, &stringFormat, &orangebrush);
 		else if (timerrunning && TimerRadar::GetSecondsRemaining() <= 5)
-			graphics.DrawString(timeremaining.c_str(), -1, &fontrem, rectFrem, &stringFormat, &redbrush);
+			graphics.DrawString(wtime.c_str(), -1, &fontrem, rectFrem, &stringFormat, &redbrush);
 		else 
-			graphics.DrawString(timeremaining.c_str(), -1, &fontrem, rectFrem, &stringFormat, &blackbrush);
+			graphics.DrawString(wtime.c_str(), -1, &fontrem, rectFrem, &stringFormat, &blackbrush);
 		for (int ij = 0; ij < 10; ij++)
 		{
 			graphics.DrawString(times.at(ij).c_str(), -1, &fontoptions, optionrects.at(ij), &stringFormat, &blackbrush);
@@ -184,13 +187,13 @@ void TimerRadar::OnClickScreenObject(int ObjectType, const char * sObjectId, POI
 			auto timestarted = times.at(index);
 			if (timestarted == L"C")
 			{
-				timeremaining = L"0:00";
+				timeremaining = "0:00";
 				TimerRadar::cancelTimer();
 			}
 				
 			else
 			{
-				timeremaining = timestarted;
+				timeremaining = std::string(timestarted.begin(),timestarted.end());
 				TimerRadar::startTimer(timesint.at(index));
 			}
 				
@@ -282,13 +285,13 @@ int TimerRadar::GetSecondsRemaining()
 
 	return timeDiff;
 }
-std::wstringstream TimerRadar::GetCurrentTimeString(int secondsRemaining)
+std::stringstream TimerRadar::GetCurrentTimeString(int secondsRemaining)
 {
 	int minutes = secondsRemaining / 60;
 	int seconds = secondsRemaining % 60;
 
-	// Use a WideStringStream to convert this data eventually into LPCWSTR
-	std::wstringstream wss;
+	
+	std::stringstream wss;
 
 	if (seconds < 10) {
 		wss << minutes << ":0" << seconds << '\0';

@@ -147,26 +147,28 @@ public:
 
 };
 
-void WayPointNotFound(std::string name, std::string dep, std::string dest);
-void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname, std::string dep, std::string dest);
-std::vector<Waypoint> parseATSPointsFromString(std::string route, std::string dep, std::string dest);
+void WayPointNotFound(std::string name);
+void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname);
+std::vector<Waypoint> parseATSPointsFromString(std::string route);
 
 class RouteTo
 	//This class stores the different standard routes to a destination icao.
 {
 public:
-	std::string mDEPICAO, mDestICAO, mEvenOdd, mLevelR, mRoute;
+	std::string mEvenOdd, mLevelR, mRoute;
 	std::vector<Waypoint> points;
-	RouteTo(std::string DepICAO, std::string DestICAO, std::string evenodd, std::string LevelR, std::string Route)
+	std::vector<std::string> validDests;
+	RouteTo(std::string evenodd, std::string LevelR, std::string Route)
 	{
-		mDEPICAO = DepICAO;
-		mDestICAO = DestICAO;
 		mEvenOdd = evenodd;
 		mLevelR = LevelR;
 		mRoute = Route;
-		points = parseATSPointsFromString(Route, DepICAO, DestICAO);
+		points = parseATSPointsFromString(Route);
 	}
-
+	void newvalidDest(std::string Dest)
+	{
+		validDests.push_back(Dest);
+	}
 	bool isCruiseValid(int Flightlevel)
 	{
 		if (this->mEvenOdd == "ALL")
@@ -255,7 +257,7 @@ public:
 	}
 	bool isRouteValid(std::string Route)
 	{
-		std::vector<Waypoint> filedPoints = parseATSPointsFromString(Route, mDEPICAO, mDestICAO);
+		std::vector<Waypoint> filedPoints = parseATSPointsFromString(Route);
 		std::string waypointNameShould, waypointNameIs;
 		if (points.size() > filedPoints.size()) 
 		{
@@ -270,64 +272,13 @@ public:
 	{
 		return true;
 	}
-	std::string makeAirwaysUnique(std::string Route)
+	bool operator==(const RouteTo& rhs)
 	{
-		std::string buf;                 // Have a buffer string
-		std::stringstream ss(Route);       // Insert the string into a stream
-		std::vector<std::string> tokens; // Create vector to hold our words
-
-		while (ss >> buf)
-			tokens.push_back(buf);
-		auto tokenscopy = tokens;
-		tokens = RemoveDuplicatesInVector(tokens);
-		std::string result;
-		for (auto temp : tokens)
-		{
-
-			result += temp;
-			result += " ";
-		}
-		return result;
+		if (this->mRoute == rhs.mRoute)
+			return true;
+		else return false;
 	}
-	std::vector<std::string> RemoveDuplicatesInVector(std::vector<std::string> vec)
-	{
-		std::set<std::string> values;
-		//vec.erase(std::remove_if(vec.begin(), vec.end(), [&](const std::string & value) { return !values.insert(value).second; }), vec.end());
-		std::vector<std::string> vec2 = vec;
-		for (auto value : vec)
-		{
-			auto check = values.find(value);
-			if (values.end() == check)
-				values.insert(value);
-			else
-			{
-				auto check1 = std::find(vec2.begin(), vec2.end(), *check);
-				if (check1 != vec2.end() && *(check1 + 2) == *check)
-				{
-					vec2.erase(std::remove(vec2.begin(), check1 + 2, *(check1 + 1)));
-					auto check2 = std::find(vec2.begin(), vec2.end(), *check);
-					vec2.erase(std::remove(vec2.begin(), check2 + 1, *check2));
-				}
-			}
-		}
-		vec2.shrink_to_fit();
-		return vec2;
-	}
-	std::string findAndReplaceAll(std::string data, std::string toSearch, std::string replaceStr)
-	{
-		// Get the first occurrence
-		size_t pos = data.find(toSearch);
-		// Repeat till end is reached
-		while (pos != std::string::npos)
-		{
-			// Replace this occurrence of Sub String
-			data.replace(pos, toSearch.size(), replaceStr);
-			// Get the next occurrence from the current position
-			pos = data.find(toSearch, pos + replaceStr.size());
-		}
-		return data;
-	}
-
+	
 };
 
 class RouteData
@@ -343,7 +294,8 @@ public:
 		std::vector<RouteTo> routes;
 		for (auto temp : Routes)
 		{
-			if (icao == temp.mDestICAO)
+			auto found = std::find(temp.validDests.begin(), temp.validDests.end(), icao);
+			if (found !=temp.validDests.end())
 				routes.push_back(temp);
 		}
 		return routes;

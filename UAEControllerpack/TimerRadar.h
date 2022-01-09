@@ -17,7 +17,7 @@ using std::max;
 class TimerRadar :public EuroScopePlugIn::CRadarScreen
 {
 public:
-	TimerRadar(std::wstring dir);
+	TimerRadar(std::string dir);
 	virtual ~TimerRadar();
 
 
@@ -35,7 +35,7 @@ public:
 	}
 	void startTimer(int sec);
 	int GetSecondsRemaining();
-	std::wstringstream GetCurrentTimeString(int secondsRemaining);
+	std::stringstream GetCurrentTimeString(int secondsRemaining);
 	void cancelTimer();
 	//---OnRefresh------------------------------------------------------
 

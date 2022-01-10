@@ -370,26 +370,34 @@ CUAEController::CUAEController(void)
 	std::string Dep, Dest, evenodd, LevelR, Routing;
 	while (in2.read_row(Dep, Dest, evenodd, LevelR, Routing))
 	{
-		auto temp = RouteTo(evenodd, LevelR, Routing);
-		//check if route has already been added
-		auto foundhash = std::find(routehashes.begin(), routehashes.end(), hasher(temp.mRoute));
-		if (foundhash == routehashes.end())
+		std::stringstream ss(Dest);
+		std::string item;
+		std::vector<std::string> alldests;
+		while (std::getline(ss, item, ':'))
+			alldests.push_back(item);
+		for (auto mydest : alldests)
 		{
-			temp.newvalidDest(Dest);
-			RouteData dt;
-			std::pair<std::string, RouteData> mypair(Dep, dt);
-			routedataoptional.insert(mypair);
-			routedataoptional.at(Dep).Routes.push_back(temp);
-			routedataoptional.at(Dep).icaos.push_back(Dest);
-			routehashes.push_back(hasher(temp.mRoute));
-		}
-		else 
-		{
-			auto foundroute = std::find(routedataoptional.at(Dep).Routes.begin(),routedataoptional.at(Dep).Routes.end(), temp);
-			auto tempRoute = *foundroute;
-			routedataoptional.at(Dep).Routes.erase(foundroute);
-			tempRoute.newvalidDest(Dest);
-			routedataoptional.at(Dep).Routes.push_back(tempRoute);			
+			auto temp = RouteTo(evenodd, LevelR, Routing);
+			//check if route has already been added
+			auto foundhash = std::find(routehashes.begin(), routehashes.end(), hasher(Dep+temp.mRoute));
+			if (foundhash == routehashes.end())
+			{
+				temp.newvalidDest(mydest);
+				RouteData dt;
+				std::pair<std::string, RouteData> mypair(Dep, dt);
+				routedataoptional.insert(mypair);
+				routedataoptional.at(Dep).Routes.push_back(temp);
+				routedataoptional.at(Dep).icaos.push_back(mydest);
+				routehashes.push_back(hasher(temp.mRoute));
+			}
+			else
+			{
+				auto foundroute = std::find(routedataoptional.at(Dep).Routes.begin(), routedataoptional.at(Dep).Routes.end(), temp);
+				auto tempRoute = *foundroute;
+				routedataoptional.at(Dep).Routes.erase(foundroute);
+				tempRoute.newvalidDest(mydest);
+				routedataoptional.at(Dep).Routes.push_back(tempRoute);
+			}
 		}
 		
 	}
@@ -403,16 +411,38 @@ CUAEController::CUAEController(void)
 	evenodd.erase();
 	LevelR.erase();
 	Routing.erase();
+	routehashes.clear();
 	while (in3.read_row(Dep, Dest, evenodd, LevelR, Routing))
 	{
-		auto temp = RouteTo(evenodd, LevelR, Routing);
-		temp.newvalidDest(Dest);
-		auto depicao = Dep;
-		RouteData dt;
-		std::pair<std::string, RouteData> mypair(depicao, dt);
-		routedatamandatory.insert(mypair);
-		routedatamandatory.at(depicao).Routes.push_back(temp);
-		routedatamandatory.at(depicao).icaos.push_back(Dest);
+		std::stringstream ss(Dest);
+		std::string item;
+		std::vector<std::string> alldests;
+		while (std::getline(ss, item, ':'))
+			alldests.push_back(item);
+		for (auto mydest : alldests)
+		{
+			auto temp = RouteTo(evenodd, LevelR, Routing);
+			//check if route has already been added
+			auto foundhash = std::find(routehashes.begin(), routehashes.end(), hasher(Dep+temp.mRoute));
+			if (foundhash == routehashes.end())
+			{
+				temp.newvalidDest(mydest);
+				RouteData dt;
+				std::pair<std::string, RouteData> mypair(Dep, dt);
+				routedatamandatory.insert(mypair);
+				routedatamandatory.at(Dep).Routes.push_back(temp);
+				routedatamandatory.at(Dep).icaos.push_back(mydest);
+				routehashes.push_back(hasher(temp.mRoute));
+			}
+			else
+			{
+				auto foundroute = std::find(routedatamandatory.at(Dep).Routes.begin(), routedatamandatory.at(Dep).Routes.end(), temp);
+				auto tempRoute = *foundroute;
+				routedatamandatory.at(Dep).Routes.erase(foundroute);
+				tempRoute.newvalidDest(mydest);
+				routedatamandatory.at(Dep).Routes.push_back(tempRoute);
+			}
+		}
 	}
 	LOG_F(INFO, "Route file mandatory parsed successfully.");
 	//////////////////////////////////////////////////////////////////////////////////////////
@@ -3550,18 +3580,27 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 	auto currentPoint = atsrouting.begin();
 	auto cP = fixes.find_waypoint(*currentPoint);
 	points.push_back(cP);
-	while (currentPoint != (atsrouting.end() - 1))
+	while (atsrouting.size()>1 &&currentPoint != (atsrouting.end() - 1))
 	{	
 		std::string airway = *(currentPoint + 1);
 		std::string nextPoint = *(currentPoint + 2);
-		if (airway == "DCT")
-		{
-			currentPoint += 2;
-			continue;
-		}
 		std::string searchPoint = *currentPoint;
 		auto cP = fixes.find_waypoint(*currentPoint);
 		Waypoint sP = cP;
+		if (airway == "DCT")
+		{
+			auto fix = fixes.find_waypoint(nextPoint);
+			if (fix.m_name == "ERROR")
+			{
+				std::string logstring("Could not find " + nextPoint + " in database. Treating it like a waypoint without airway connections.");
+				LOG_F(INFO, logstring.c_str());
+				fix.m_name = nextPoint;
+			}
+			points.push_back(fix);
+			currentPoint += 2;
+			continue;
+		}
+		
 		while (searchPoint != nextPoint)
 		{
 			auto pointsOnAirway = sP.getNextPointNameOnAirway(airway);
@@ -3605,7 +3644,7 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 
 				points.push_back(sP);
 			}
-			else if (pointsOnAirway.size() == 1 && pointsOnAirway.back() != "ERROR")
+			else if (pointsOnAirway.size() == 1 && pointsOnAirway.back() != "ERROR" && (points.size() == 0 || points.size() ==1 || (points.size()>1 && points.rbegin()[1] != pointsOnAirway.back())))
 			{
 				searchPoint = pointsOnAirway.back();
 				sP = fixes.find_waypoint(searchPoint);
@@ -3618,6 +3657,7 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 				if (possibleDiff.empty())
 					AirwayWaypointConnectionNotFound(points.back().m_name, airway);
 				auto found = std::find(points.begin(), points.end(), possibleDiff.back());
+				avoidPoint.push_back((found + 1)->m_name);
 				points.erase(found + 1, points.end());
 				searchPoint = possibleDiff.back();
 				possibleDiff.pop_back();

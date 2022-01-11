@@ -264,9 +264,14 @@ public:
 			return false;				
 		}
 		auto check = std::mismatch(points.begin(), points.end(), filedPoints.begin());
-		waypointNameIs = check.second->m_name;
-		waypointNameShould = check.first->m_name;
-		return points.end() == check.first;
+		if (points.end() == check.first)
+			return true;
+		else
+		{
+			waypointNameIs = check.second->m_name;
+			waypointNameShould = check.first->m_name;
+			return false;
+		}
 	}
 	static bool test()
 	{

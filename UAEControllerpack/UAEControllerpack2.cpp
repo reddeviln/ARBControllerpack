@@ -1031,7 +1031,17 @@ std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, std::stri
 	{
 		std::string tmp = Route;
 		std::regex rule("\\/(.+?)(\\\s+?)");
+		std::regex ruleD("\\\d");
+		std::string empty = " ";
 		tmp = std::regex_replace(tmp, rule, " ");
+		auto findStart = tmp.find(" ");
+		bool foundSID = std::regex_search(tmp.substr(0, findStart), ruleD);
+		if (foundSID)
+			tmp = tmp.substr(findStart+1, tmp.size()-1);
+		auto findBack = tmp.rfind(" ");
+		bool foundSTAR = std::regex_search(tmp.substr(findBack, tmp.size() - 1), ruleD);
+		if (foundSTAR)
+			tmp = tmp.substr(0, findBack);
 		if (!routevalid)
 		{
 			routevalid = d.isRouteValid(tmp);
@@ -3558,13 +3568,13 @@ void WayPointNotFound(std::string name)
 	std::string logstring = "Could not find ";
 	logstring += name;
 	LOG_F(ERROR, logstring.c_str());
-	throw std::invalid_argument(logstring.c_str());
+	//throw std::invalid_argument(logstring.c_str());
 }
 void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname)
 {
 	std::string logstring = "Airway/Waypoint mismatch with fix " + pointname + " and airway " + airwayname;
 	LOG_F(ERROR, logstring.c_str());
-	throw std::invalid_argument(logstring.c_str());
+	//throw std::invalid_argument(logstring.c_str());
 }
 std::vector<Waypoint> parseATSPointsFromString(std::string route)
 {
@@ -3574,6 +3584,7 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 	std::vector<std::string> atsrouting;
 	std::vector<std::string> possibleDiff;
 	std::vector<std::string> avoidPoint;
+	std::regex ruleD("\\\d");
 	//split string into vector on space
 	while (ss >> buf)
 		atsrouting.push_back(buf);
@@ -3600,7 +3611,21 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 			currentPoint += 2;
 			continue;
 		}
-		
+		//cater for the case of implicit direct
+		else if (!std::regex_search(airway.begin(), airway.end(), ruleD))
+		{
+			nextPoint = airway;
+			auto fix = fixes.find_waypoint(nextPoint);
+			if (fix.m_name == "ERROR")
+			{
+				std::string logstring("Could not find " + nextPoint + " in database. Treating it like a waypoint without airway connections.");
+				LOG_F(INFO, logstring.c_str());
+				fix.m_name = nextPoint;
+			}
+			points.push_back(fix);
+			currentPoint += 1;
+			continue;
+		}
 		while (searchPoint != nextPoint)
 		{
 			auto pointsOnAirway = sP.getNextPointNameOnAirway(airway);
@@ -3648,14 +3673,22 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 			{
 				searchPoint = pointsOnAirway.back();
 				sP = fixes.find_waypoint(searchPoint);
-				if (sP.m_name == "ERROR")
+				if (sP.m_name == "ERROR") 
+				{
 					WayPointNotFound(searchPoint);
+					return points;
+				}
+					
 				points.push_back(sP);
 			}
 			else
 			{
 				if (possibleDiff.empty())
+				{
 					AirwayWaypointConnectionNotFound(points.back().m_name, airway);
+					return points;
+				}
+					
 				auto found = std::find(points.begin(), points.end(), possibleDiff.back());
 				avoidPoint.push_back((found + 1)->m_name);
 				points.erase(found + 1, points.end());

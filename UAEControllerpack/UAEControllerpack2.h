@@ -149,7 +149,7 @@ public:
 
 void WayPointNotFound(std::string name);
 void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname);
-std::vector<Waypoint> parseATSPointsFromString(std::string route);
+std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> points = std::vector<Waypoint>());
 
 class RouteTo
 	//This class stores the different standard routes to a destination icao.
@@ -257,7 +257,15 @@ public:
 	}
 	bool isRouteValid(std::string Route)
 	{
-		std::vector<Waypoint> filedPoints = parseATSPointsFromString(Route);
+		std::vector<Waypoint> filedPoints;
+		try {
+			std::vector<Waypoint> filedPoints = parseATSPointsFromString(Route, points);
+		}
+		catch (...)
+		{
+			std::string logstring = "Exception thrown for route " + Route + ".";
+			return false;
+		}
 		std::string waypointNameShould, waypointNameIs;
 		if (points.size() > filedPoints.size()) 
 		{

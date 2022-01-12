@@ -3576,7 +3576,8 @@ void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayn
 	LOG_F(ERROR, logstring.c_str());
 	//throw std::invalid_argument(logstring.c_str());
 }
-std::vector<Waypoint> parseATSPointsFromString(std::string route)
+
+std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> correctPoints)
 {
 	std::vector<Waypoint> points;
 	std::stringstream ss(route);
@@ -3591,6 +3592,9 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 	auto currentPoint = atsrouting.begin();
 	auto cP = fixes.find_waypoint(*currentPoint);
 	points.push_back(cP);
+	if (!correctPoints.empty() && cP.m_name != correctPoints.begin()->m_name)
+		return points;
+	auto correctCP = correctPoints.begin();
 	while (atsrouting.size()>1 &&currentPoint != (atsrouting.end() - 1))
 	{	
 		std::string airway = *(currentPoint + 1);
@@ -3608,6 +3612,10 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 				fix.m_name = nextPoint;
 			}
 			points.push_back(fix);
+			//if we have a deviation from the correct points right here already or reached the end of the required routing we exit.
+			if (!correctPoints.empty() && (fix.m_name != correctCP->m_name ||correctCP == correctPoints.end()))
+				return points;
+			correctCP++;
 			currentPoint += 2;
 			continue;
 		}
@@ -3622,7 +3630,11 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 				LOG_F(INFO, logstring.c_str());
 				fix.m_name = nextPoint;
 			}
+			
 			points.push_back(fix);
+			if (!correctPoints.empty() && (fix.m_name != correctCP->m_name || correctCP == correctPoints.end()))
+				return points;
+			correctCP++;
 			currentPoint += 1;
 			continue;
 		}
@@ -3668,6 +3680,9 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 				}
 
 				points.push_back(sP);
+				if (!correctPoints.empty() && (sP.m_name != correctCP->m_name || correctCP == correctPoints.end()))
+					return points;
+				correctCP++;
 			}
 			else if (pointsOnAirway.size() == 1 && pointsOnAirway.back() != "ERROR" && (points.size() == 0 || points.size() ==1 || (points.size()>1 && points.rbegin()[1] != pointsOnAirway.back())))
 			{
@@ -3680,6 +3695,9 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route)
 				}
 					
 				points.push_back(sP);
+				if (!correctPoints.empty() && (sP.m_name != correctCP->m_name || correctCP == correctPoints.end()))
+					return points;
+				correctCP++;
 			}
 			else
 			{

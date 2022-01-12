@@ -259,11 +259,12 @@ public:
 	{
 		std::vector<Waypoint> filedPoints;
 		try {
-			std::vector<Waypoint> filedPoints = parseATSPointsFromString(Route, points);
+			filedPoints = parseATSPointsFromString(Route, points);
 		}
 		catch (...)
 		{
 			std::string logstring = "Exception thrown for route " + Route + ".";
+			LOG_F(ERROR, logstring.c_str());
 			return false;
 		}
 		std::string waypointNameShould, waypointNameIs;

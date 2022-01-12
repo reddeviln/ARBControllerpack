@@ -3594,7 +3594,10 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Wa
 	points.push_back(cP);
 	if (!correctPoints.empty() && cP.m_name != correctPoints.begin()->m_name)
 		return points;
+	
 	auto correctCP = correctPoints.begin();
+	if (!correctPoints.empty())
+		correctCP++;
 	while (atsrouting.size()>1 &&currentPoint != (atsrouting.end() - 1))
 	{	
 		std::string airway = *(currentPoint + 1);
@@ -3613,9 +3616,10 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Wa
 			}
 			points.push_back(fix);
 			//if we have a deviation from the correct points right here already or reached the end of the required routing we exit.
-			if (!correctPoints.empty() && (fix.m_name != correctCP->m_name ||correctCP == correctPoints.end()))
+			if (!correctPoints.empty() && (correctCP == correctPoints.end() || fix.m_name != correctCP->m_name))
 				return points;
-			correctCP++;
+			if (!correctPoints.empty())
+				correctCP++;
 			currentPoint += 2;
 			continue;
 		}
@@ -3632,9 +3636,10 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Wa
 			}
 			
 			points.push_back(fix);
-			if (!correctPoints.empty() && (fix.m_name != correctCP->m_name || correctCP == correctPoints.end()))
+			if (!correctPoints.empty() && (correctCP == correctPoints.end() || fix.m_name != correctCP->m_name))
 				return points;
-			correctCP++;
+			if (!correctPoints.empty())
+				correctCP++;
 			currentPoint += 1;
 			continue;
 		}
@@ -3680,9 +3685,10 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Wa
 				}
 
 				points.push_back(sP);
-				if (!correctPoints.empty() && (sP.m_name != correctCP->m_name || correctCP == correctPoints.end()))
+				if (!correctPoints.empty() && (correctCP == correctPoints.end() || sP.m_name != correctCP->m_name))
 					return points;
-				correctCP++;
+				if (!correctPoints.empty())
+					correctCP++;
 			}
 			else if (pointsOnAirway.size() == 1 && pointsOnAirway.back() != "ERROR" && (points.size() == 0 || points.size() ==1 || (points.size()>1 && points.rbegin()[1] != pointsOnAirway.back())))
 			{
@@ -3695,9 +3701,10 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Wa
 				}
 					
 				points.push_back(sP);
-				if (!correctPoints.empty() && (sP.m_name != correctCP->m_name || correctCP == correctPoints.end()))
+				if (!correctPoints.empty() && (correctCP == correctPoints.end() ||sP.m_name != correctCP->m_name))
 					return points;
-				correctCP++;
+				if(!correctPoints.empty())
+					correctCP++;
 			}
 			else
 			{

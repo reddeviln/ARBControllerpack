@@ -646,7 +646,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			{
 				std::string logstring = "Aircraft ";
 				logstring += FlightPlan.GetCallsign();
-				logstring += "is skipped because Clearance flag is set.";
+				logstring += " is skipped because Clearance flag is set.";
 				LOG_F(INFO, logstring.c_str());
 				return;
 			}
@@ -1033,19 +1033,35 @@ std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, std::stri
 		std::regex rule("\\/(.+?)(\\\s+?)");
 		std::regex ruleD("\\\d");
 		std::string empty = " ";
+		
+		bool foundSID = true;
+		bool foundSTAR = true;
 		tmp = std::regex_replace(tmp, rule, " ");
-		auto findStart = tmp.find(" ");
-		bool foundSID = std::regex_search(tmp.substr(0, findStart), ruleD);
-		if (foundSID)
-			tmp = tmp.substr(findStart+1, tmp.size()-1);
-		auto findBack = tmp.rfind(" ");
-		bool foundSTAR = std::regex_search(tmp.substr(findBack, tmp.size() - 1), ruleD);
-		if (foundSTAR)
-			tmp = tmp.substr(0, findBack);
-		if (!routevalid)
+		while (foundSID)
 		{
-			routevalid = d.isRouteValid(tmp);
+			auto findStart = tmp.find(" ");
+			std::string start = tmp.substr(0, findStart);
+			foundSID = std::regex_search(start, ruleD);
+			if (start.size() == 4)
+				foundSID = true;
+			if (foundSID)
+				tmp = tmp.substr(findStart + 1, tmp.size() - 1);
 		}
+		
+		while (foundSTAR)
+		{
+			auto findBack = tmp.rfind(" ");
+			std::string end = tmp.substr(findBack, tmp.size() - 1);
+			foundSTAR = std::regex_search(end, ruleD);
+			if (end.size() == 4)
+				foundSTAR = true;
+			if (foundSTAR)
+				tmp = tmp.substr(0, findBack);
+		}
+		
+		routevalid = d.isRouteValid(tmp);
+		if (!routevalid)
+			continue;
 		else
 		{
 			if (d.isCruiseValid(level))

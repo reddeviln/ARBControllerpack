@@ -1042,7 +1042,7 @@ std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, std::stri
 			auto findStart = tmp.find(" ");
 			std::string start = tmp.substr(0, findStart);
 			foundSID = std::regex_search(start, ruleD);
-			if (start.size() == 4)
+			if (start.size() == 4 || start == "DCT")
 				foundSID = true;
 			if (foundSID)
 				tmp = tmp.substr(findStart + 1, tmp.size() - 1);

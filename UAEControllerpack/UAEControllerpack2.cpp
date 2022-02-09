@@ -388,7 +388,7 @@ CUAEController::CUAEController(void)
 				routedataoptional.insert(mypair);
 				routedataoptional.at(Dep).Routes.push_back(temp);
 				routedataoptional.at(Dep).icaos.push_back(mydest);
-				routehashes.push_back(hasher(temp.mRoute));
+				routehashes.push_back(hasher(Dep+temp.mRoute));
 			}
 			else
 			{
@@ -3688,6 +3688,8 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Wa
 						auto foundaP = std::find(avoidPoint.begin(), avoidPoint.end(), elem);
 						if (points.size() == 1 && points.back() == sP)
 							continue;
+						if (avoidPoint.size() > 10)
+							AirwayWaypointConnectionNotFound(searchPoint,airway);
 						else if (points.size() > 1 && ( * (points.end() - 2) == sP)|| foundaP != avoidPoint.end())
 							continue;
 						else 

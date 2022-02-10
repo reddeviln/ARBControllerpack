@@ -1051,9 +1051,9 @@ std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, std::stri
 		while (foundSTAR)
 		{
 			auto findBack = tmp.rfind(" ");
-			std::string end = tmp.substr(findBack, tmp.size() - 1);
+			std::string end = tmp.substr(findBack+1, tmp.size() - 1);
 			foundSTAR = std::regex_search(end, ruleD);
-			if (end.size() == 4)
+			if (end.size() == 4 || end == "DCT")
 				foundSTAR = true;
 			if (foundSTAR)
 				tmp = tmp.substr(0, findBack);
@@ -3703,7 +3703,7 @@ std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Wa
 				}
 
 				points.push_back(sP);
-				if (!correctPoints.empty() && (correctCP == correctPoints.end() || sP.m_name != correctCP->m_name))
+				if (!correctPoints.empty() && (correctCP == correctPoints.end()))
 					return points;
 				if (!correctPoints.empty())
 					correctCP++;

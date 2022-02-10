@@ -206,6 +206,20 @@ public:
 						else return false;
 					}
 				}
+				else if (this->mLevelR.at(0) == '>')
+				{
+					std::string restr = this->mLevelR.substr(1, 3);
+					if (this->mEvenOdd == "ODD")
+					{
+						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel >= std::stoi(restr)) return true;
+						else return false;
+					}
+					if (this->mEvenOdd == "EVEN")
+					{
+						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel >= std::stoi(restr) * 100) return true;
+						else return false;
+					}
+				}
 				else
 				{
 					int restr = std::stoi(this->mLevelR);

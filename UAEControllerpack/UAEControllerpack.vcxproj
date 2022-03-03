@@ -41,6 +41,7 @@
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
     <UseOfMfc>Dynamic</UseOfMfc>
+    <EnableASAN>false</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -151,6 +152,8 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
+      <OmitFramePointers>true</OmitFramePointers>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

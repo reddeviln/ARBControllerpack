@@ -70,6 +70,12 @@ public:
 			return true;
 		else return false;
 	}
+	bool operator==(const std::string& rhs)
+	{
+		if (this->m_name == rhs)
+			return true;
+		else return false;
+	}
 	bool operator<(const Waypoint& rhs)
 	{
 		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
@@ -77,6 +83,14 @@ public:
 	bool operator<(const Waypoint& rhs) const
 	{
 		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
+	}
+	bool operator<(const std::string& rhs) const
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.begin(), rhs.end());
+	}
+	bool operator<(const std::string& rhs) 
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.begin(), rhs.end());
 	}
 private:
 
@@ -269,15 +283,29 @@ public:
 		return returnval;
 		
 	}
-	bool isRouteValid(std::string Route)
+	bool isRouteValid(EuroScopePlugIn::CFlightPlanExtractedRoute Route)
 	{
-		std::vector<Waypoint> filedPoints;
+		std::vector<std::string> filedPoints;
+		int length = Route.GetPointsNumber();
 		try {
-			filedPoints = parseATSPointsFromString(Route, points);
+			
+			std::vector<std::string> espoints;
+			for (int i = 1; i < length; i++)
+			{
+				std::string airway = Route.GetPointAirwayName(i);
+				if (airway.size() > 4)
+					continue;
+				espoints.push_back(Route.GetPointName(i - 1));
+			}
+			filedPoints = espoints;
 		}
+		
 		catch (...)
 		{
-			std::string logstring = "Exception thrown for route " + Route + ".";
+			std::string logstring = "Exception thrown for route ";
+			logstring += Route.GetPointName(0);
+			logstring += " to ";
+			logstring += Route.GetPointName(length - 1);
 			LOG_F(ERROR, logstring.c_str());
 			return false;
 		}
@@ -291,7 +319,6 @@ public:
 			return true;
 		else
 		{
-			waypointNameIs = check.second->m_name;
 			waypointNameShould = check.first->m_name;
 			return false;
 		}
@@ -306,6 +333,12 @@ public:
 			return true;
 		else return false;
 	}
+	bool operator==(const std::string& rhs)
+	{
+		if (this->mRoute == rhs)
+			return true;
+		else return false;
+	}
 	
 };
 
@@ -315,12 +348,12 @@ class RouteData
 public:
 	RouteData() {}
 	std::vector<RouteTo> Routes;
-	std::vector<std::string> icaos;
+	std::set<std::string> icaos;
 
 	std::vector<RouteTo> getDatafromICAO(std::string icao)
 	{
 		std::vector<RouteTo> routes;
-		for (auto temp : Routes)
+		for (auto &temp : Routes)
 		{
 			auto found = std::find(temp.validDests.begin(), temp.validDests.end(), icao);
 			if (found !=temp.validDests.end())
@@ -479,7 +512,7 @@ public:
 		COLORREF * pRGB,
 		double * pFontSize);
 
-	std::string isFlightPlanValid(std::vector<RouteTo> dt, std::string Route, int level);
+	std::string isFlightPlanValid(std::vector<RouteTo> dt, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level);
 	//returnvalue: "o": valid
 	//             "L": level invalid but route valid
 	//             "R": route invalid but level valid
@@ -503,7 +536,7 @@ public:
 	void cleanupStands();
 	bool isDestValid(std::string callsign, EuroScopePlugIn::CFlightPlanData data);
 	Stand extractRandomStand(std::vector<Stand> stands, char size, std::string icao);
-	std::string getRouteRegion(std::unordered_map<std::string, RouteData> routedata, std::string icadep, std::string icaodest);
+	std::string getRouteRegion(const std::unordered_map<std::string, RouteData>& routedata, std::string icadep, std::string icaodest);
 	char determineAircraftCat(EuroScopePlugIn::CFlightPlan);
 	std::vector<Stand> getStandOfAircraft(EuroScopePlugIn::CPosition position);
 	void readStandFile(std::string dir, std::string airport);

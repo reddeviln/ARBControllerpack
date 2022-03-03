@@ -178,7 +178,7 @@ void TimerRadar::OnClickScreenObject(int ObjectType, const char * sObjectId, POI
 			optionrects.push_back(CRect(topleft.x+(i-1)*width/5,topleft.y+j*height/3,topleft.x+i*width/5,topleft.y+(j+1)*height/3));
 		}
 	}
-	for (auto rect : optionrects)
+	for (auto& rect : optionrects)
 	{
 		if (rect.PtInRect(Pt))
 		{

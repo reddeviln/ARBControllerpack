@@ -4,7 +4,7 @@
 #include "loguru.cpp"
 
 #define MY_PLUGIN_NAME      "Controller Pack ARBvACC"
-#define MY_PLUGIN_VERSION   "2.0.1"
+#define MY_PLUGIN_VERSION   "3.0.0"
 #define MY_PLUGIN_DEVELOPER "Nils Dornbusch"
 #define MY_PLUGIN_COPYRIGHT "Licensed under GNU GPLv3"
 #define MY_PLUGIN_VIEW      ""
@@ -67,6 +67,10 @@ std::vector<Airport> activeAirports;
 std::unordered_map<std::string, RouteData> routedataoptional;
 std::unordered_map<std::string, RouteData> routedatamandatory;
 std::unordered_map<std::string, std::string> abb;
+std::vector<size_t> routehashesOPT;
+std::vector<size_t> routehashesMAN;
+std::hash<std::string>  hasher;
+Fixes fixes;
 //Constructor (run at plugin load)
 CUAEController::CUAEController(void)
 	: CPlugIn(EuroScopePlugIn::COMPATIBILITY_CODE,
@@ -149,7 +153,40 @@ CUAEController::CUAEController(void)
 	LOG_F(INFO, "Everything registered. Ready to go!");
 
 	//----------------------------------------Loading of all the different files--------------------------------------------
+	//0. Navdata 
+	std::string navdir = directory;
+	
+	std::string from = "Plugins\\ARBControllerPack";
+	auto start_pos = navdir.find(from);
+	if (start_pos == std::string::npos)
+		LOG_F(ERROR, "Reinstall your sectorfile please directory setup does not match the expected.");
+	navdir.replace(start_pos, from.length(), "Navdata");
+	auto navfile = navdir + "airway.txt";
+	io::CSVReader<16, io::trim_chars<' '>, io::no_quote_escape<'\t'>, io::throw_on_overflow, io::single_line_comment<'\;'>> navreader(navfile);
+	std::string name, lat1, long1, garbage, airway, highlow, prevPoint, lat2, long2, minAlt, pointprevOK, nextPoint, lat3, long3, minalt2,nextPointOK;
+	navreader.set_header("name", "lat1", "long1", "garbage", "airway", "highlow", "prevPoint", "lat2", "long2", "minAlt", "pointprevOK", "nextPoint", "lat3", "long3", "minalt2", "nextPointOK");
+	LOG_F(INFO, "Start reading navdata this might take a bit ....");
+	while (navreader.read_row(name, lat1, long1, garbage, airway, highlow, prevPoint, lat2, long2, minAlt, pointprevOK, nextPoint, lat3, long3, minalt2, nextPointOK))
+	{
+		Waypoint temp= Waypoint(name);
+		auto found = fixes.find_waypoint(name);
+		if (found.m_name != "ERROR")
+		{
+			temp = found;
+		}
+					
+		if (nextPointOK == "Y")
+		{
+			temp.addConnection(airway, nextPoint);
+		}
+		if (pointprevOK == "Y")
+		{
+			temp.addConnection(airway, prevPoint);
+		}
+		fixes.add_fix(temp);
 
+	}
+	LOG_F(INFO, "Navdata reading complete. Very nice!");
 	//1. RECAT dictionary
 	dir += "RECAT.csv";
 	io::CSVReader<3, io::trim_chars<' '>, io::no_quote_escape<','>> in(dir);
@@ -334,15 +371,40 @@ CUAEController::CUAEController(void)
 	std::string Dep, Dest, evenodd, LevelR, Routing;
 	while (in2.read_row(Dep, Dest, evenodd, LevelR, Routing))
 	{
-		auto temp = RouteTo(Dep, Dest, evenodd, LevelR, Routing);
-		auto depicao = temp.mDEPICAO;
-		RouteData dt;
-		std::pair<std::string, RouteData> mypair(depicao, dt);
-		routedataoptional.insert(mypair);
-		routedataoptional.at(depicao).Routes.push_back(temp);
-		routedataoptional.at(depicao).icaos.push_back(Dest);
+		std::stringstream ss(Dest);
+		std::string item;
+		std::vector<std::string> alldests;
+		while (std::getline(ss, item, ':'))
+			alldests.push_back(item);
+		for (auto mydest : alldests)
+		{
+			std::string hashing = Dep + Routing;
+			//check if route has already been added
+			auto foundhash = std::find(routehashesOPT.begin(), routehashesOPT.end(), hasher(hashing));
+			if (foundhash == routehashesOPT.end())
+			{
+				auto temp = RouteTo(evenodd, LevelR, Routing);
+				temp.newvalidDest(mydest);
+				RouteData dt;
+				std::pair<std::string, RouteData> mypair(Dep, dt);
+				routedataoptional.insert(mypair);
+				routedataoptional.at(Dep).Routes.push_back(temp);
+				routedataoptional.at(Dep).icaos.insert(mydest);
+				routehashesOPT.push_back(hasher(hashing));
+			}
+			else
+			{
+				auto foundroute = std::find(routedataoptional.at(Dep).Routes.begin(), routedataoptional.at(Dep).Routes.end(), Routing);
+				auto tempRoute = *foundroute;
+				routedataoptional.at(Dep).Routes.erase(foundroute);
+				tempRoute.newvalidDest(mydest);
+				routedataoptional.at(Dep).Routes.push_back(tempRoute);
+				routedataoptional.at(Dep).icaos.insert(mydest);
+			}
+		}
 	}
 	LOG_F(INFO, "Route file optional parsed successfully.");
+	
 	/////////////////////////////////////////////////////////
 	//mandatory
 	///////////////////////////////////////////////////////
@@ -352,16 +414,43 @@ CUAEController::CUAEController(void)
 	evenodd.erase();
 	LevelR.erase();
 	Routing.erase();
+	routehashesMAN.clear();
 	while (in3.read_row(Dep, Dest, evenodd, LevelR, Routing))
 	{
-		auto temp = RouteTo(Dep, Dest, evenodd, LevelR, Routing);
-		auto depicao = temp.mDEPICAO;
-		RouteData dt;
-		std::pair<std::string, RouteData> mypair(depicao, dt);
-		routedatamandatory.insert(mypair);
-		routedatamandatory.at(depicao).Routes.push_back(temp);
-		routedatamandatory.at(depicao).icaos.push_back(Dest);
+		std::stringstream ss(Dest);
+		std::string item;
+		std::vector<std::string> alldests;
+		while (std::getline(ss, item, ':'))
+			alldests.push_back(item);
+		for (auto mydest : alldests)
+		{
+			
+			//check if route has already been added
+			std::string hashing = Dep + Routing;
+			auto foundhash = std::find(routehashesMAN.begin(), routehashesMAN.end(), hasher(hashing));
+			if (foundhash == routehashesMAN.end())
+			{
+				auto temp = RouteTo(evenodd, LevelR, Routing);
+				temp.newvalidDest(mydest);
+				RouteData dt;
+				std::pair<std::string, RouteData> mypair(Dep, dt);
+				routedatamandatory.insert(mypair);
+				routedatamandatory.at(Dep).Routes.push_back(temp);
+				routedatamandatory.at(Dep).icaos.insert(mydest);
+				routehashesMAN.push_back(hasher(hashing));
+			}
+			else
+			{
+				auto foundroute = std::find(routedatamandatory.at(Dep).Routes.begin(), routedatamandatory.at(Dep).Routes.end(), Routing);
+				auto tempRoute = *foundroute;
+				routedatamandatory.at(Dep).Routes.erase(foundroute);
+				tempRoute.newvalidDest(mydest);
+				routedatamandatory.at(Dep).Routes.push_back(tempRoute);
+				routedatamandatory.at(Dep).icaos.insert(mydest);
+			}
+		}
 	}
+	
 	LOG_F(INFO, "Route file mandatory parsed successfully.");
 	//////////////////////////////////////////////////////////////////////////////////////////
 	//-----------------------------4. diverse files--------------------------------------
@@ -397,7 +486,7 @@ EuroScopePlugIn::CRadarScreen    *CUAEController::OnRadarScreenCreated(const cha
 {
 	if (strcmp(sDisplayName, "Timer") == 0)
 		return NULL;
-	TimerRadar * myscreen = new TimerRadar(TimerRadar::to_wstring(directory));
+	TimerRadar * myscreen = new TimerRadar(directory);
 	return myscreen;
 }
 void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
@@ -564,7 +653,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			{
 				std::string logstring = "Aircraft ";
 				logstring += FlightPlan.GetCallsign();
-				logstring += "is skipped because Clearance flag is set.";
+				logstring += " is skipped because Clearance flag is set.";
 				LOG_F(INFO, logstring.c_str());
 				return;
 			}
@@ -582,8 +671,11 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				strcpy(sItemString, "?");
 				return;
 			}
+			//Getting a std::vector<RouteTo> for the Dep/Dest Pair
 			auto dt = routedatamandatory.at(icaodep).getDatafromICAO(icaodesttype);
-			std::string validmandatory = isFlightPlanValid(dt, fpdata.GetRoute(), fpdata.GetFinalAltitude());
+			//Check if flightplan is valid in the mandatory sense
+			auto route = FlightPlan.GetExtractedRoute();
+			std::string validmandatory = isFlightPlanValid(dt, route, fpdata.GetFinalAltitude());
 			*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
 			if (strcmp(validmandatory.c_str(), "o") != 0)
 			{
@@ -596,7 +688,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 				icaodesttype = getRouteRegion(routedataoptional, icaodep, icaodest);
 				if (strcmp(icaodesttype.c_str(), "?") == 0) return;
 				auto dtoptional = routedataoptional.at(icaodep).getDatafromICAO(icaodesttype);
-				std::string validoptional = isFlightPlanValid(dtoptional, fpdata.GetRoute(), fpdata.GetFinalAltitude());
+				std::string validoptional = isFlightPlanValid(dtoptional, route, fpdata.GetFinalAltitude());
 				if (strcmp(validoptional.c_str(), "R") == 0)
 				{
 					*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
@@ -939,44 +1031,25 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 		}
 	}
 }
-std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, std::string Route, int level)
+std::string CUAEController::isFlightPlanValid(std::vector<RouteTo> dt, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level)
 {
 	bool routevalid = false;
 	bool cruisevalid = false;
-	for (auto d : dt) {
-		std::string tmp = Route;
-		std::regex rule("\\/(.+?)(\\\s+?)");
-		tmp = std::regex_replace(tmp, rule, " ");
+	for (auto d : dt) 
+	{
+		routevalid = d.isRouteValid(route);
 		if (!routevalid)
-		{
-			routevalid = d.isRouteValid(tmp);
-		}
+			continue;
 		else
 		{
-			cruisevalid = d.isCruiseValid(level);
-			if (cruisevalid && routevalid)
-			{
-				
+			if (d.isCruiseValid(level))
 				return "o";
-			}
-			else {
+			else
 				return "L";
-			}
-
 		}
-		cruisevalid = d.isCruiseValid(level);
-		if (routevalid && cruisevalid)
-		{
-			return "o";
-
-		}
-
 	}
-	if (cruisevalid && !routevalid) return "R";
-	else if (routevalid && !cruisevalid) return "L";
-	else {
-		return "X";
-	}
+	return "R";
+	
 }
 void  CUAEController::OnTimer(int Counter)
 {
@@ -2963,7 +3036,7 @@ int CUAEController::_SelectAcIndex(EuroScopePlugIn::CFlightPlan flightplan)
 	{
 		return -1;
 	}
-	for (CTOTData test : m_sequence_OMDB)
+	for (const CTOTData& test : m_sequence_OMDB)
 	{
 		try {
 			CString temp1 = test.flightplan.GetCallsign();
@@ -2976,7 +3049,7 @@ int CUAEController::_SelectAcIndex(EuroScopePlugIn::CFlightPlan flightplan)
 		catch (const std::exception) { continue; }
 	}
 	i = 0;
-	for (CTOTData test : m_sequence_OMSJ)
+	for (const CTOTData& test : m_sequence_OMSJ)
 	{
 		try {
 			CString temp1 = test.flightplan.GetCallsign();
@@ -2989,7 +3062,7 @@ int CUAEController::_SelectAcIndex(EuroScopePlugIn::CFlightPlan flightplan)
 		catch (const std::exception) { continue; }
 	}
 	i = 0;
-	for (CTOTData test : m_sequence_OMDW)
+	for (const CTOTData& test : m_sequence_OMDW)
 	{
 		try {
 			CString temp1 = test.flightplan.GetCallsign();
@@ -3002,7 +3075,7 @@ int CUAEController::_SelectAcIndex(EuroScopePlugIn::CFlightPlan flightplan)
 		catch (const std::exception) { continue; }
 	}
 	i = 0;
-	for (CTOTData test : m_sequence_OMAA)
+	for (const CTOTData& test : m_sequence_OMAA)
 	{
 		try {
 			CString temp1 = test.flightplan.GetCallsign();
@@ -3289,7 +3362,7 @@ void CUAEController::readCallsignFile(std::string dir, std::string airport)
 	logstring += airport;
 	LOG_F(INFO, logstring.c_str());
 }
-std::string CUAEController::getRouteRegion(std::unordered_map<std::string,RouteData> routedata,std::string icaodep, std::string icaodest)
+std::string CUAEController::getRouteRegion(const std::unordered_map<std::string,RouteData>& routedata,std::string icaodep, std::string icaodest)
 {
 	std::string returnvalue;
 	if (routedata.find(icaodep) == routedata.end())
@@ -3301,66 +3374,28 @@ std::string CUAEController::getRouteRegion(std::unordered_map<std::string,RouteD
 		return returnvalue;
 	}
 
-
-	bool foundRoute = false;
-	for (auto temp : routedata.at(icaodep).icaos)
-	{
-		if (temp == icaodest)
-		{
-			foundRoute = true;
-			returnvalue = icaodest;
-			break;
-		}
-
-	}
-	if (!foundRoute)
-	{
-		for (auto temp : routedata.at(icaodep).icaos)
-		{
-			if (temp == icaodest.substr(0, 3))
-			{
-
-				returnvalue = icaodest.substr(0, 3);
-				foundRoute = true;
-				break;
-			}
-		}
-		if (!foundRoute)
-		{
-			for (auto temp : routedata.at(icaodep).icaos)
-			{
-				if (temp == icaodest.substr(0, 2))
-				{
-
-					returnvalue = icaodest.substr(0, 2);
-					foundRoute = true;
-					break;
-				}
-			}
-			if (!foundRoute)
-			{
-				for (auto temp : routedata.at(icaodep).icaos)
-				{
-					if (temp == icaodest.substr(0, 1))
-					{
-						returnvalue = icaodest.substr(0, 1);
-
-						foundRoute = true;
-						break;
-					}
-				}
-			}
-			if (!foundRoute)
-			{
-				returnvalue = "?";
-				std::string logstring = "No mandatory (dummy) route to " + icaodest + " found.";
-				LOG_F(INFO, logstring.c_str());
-				return returnvalue;
-			}
-
-		}
-	}
+	auto temp = icaodest;
+	auto found = routedata.at(icaodep).icaos.find(temp);
+	if (found != routedata.at(icaodep).icaos.end())
+		return temp;
+	temp = icaodest.substr(0, 3);
+	found = routedata.at(icaodep).icaos.find(temp);
+	if (found != routedata.at(icaodep).icaos.end())
+		return temp;
+	temp = icaodest.substr(0, 2);
+	found = routedata.at(icaodep).icaos.find(temp);
+	if (found != routedata.at(icaodep).icaos.end())
+		return temp;
+	temp = icaodest.substr(0, 1);
+	found = routedata.at(icaodep).icaos.find(temp);
+	if (found != routedata.at(icaodep).icaos.end())
+		return temp;
+			
+	returnvalue = "?";
+	std::string logstring = "No mandatory (dummy) route to " + icaodest + " found.";
+	LOG_F(INFO, logstring.c_str());
 	return returnvalue;
+			
 }
 
 void markStandsasOccupied(Stand mystand,std::string code, std::string icao)
@@ -3483,4 +3518,174 @@ bool CUAEController::isDestValid(std::string callsign,EuroScopePlugIn::CFlightPl
 	}
 	
 		
+}
+void WayPointNotFound(std::string name)
+{
+	std::string logstring = "Could not find ";
+	logstring += name;
+	LOG_F(ERROR, logstring.c_str());
+	//throw std::invalid_argument(logstring.c_str());
+}
+void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname)
+{
+	std::string logstring = "Airway/Waypoint mismatch with fix " + pointname + " and airway " + airwayname;
+	LOG_F(ERROR, logstring.c_str());
+	//throw std::invalid_argument(logstring.c_str());
+}
+
+std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> correctPoints)
+{
+	std::vector<Waypoint> points;
+	std::stringstream ss(route);
+	std::string buf;
+	std::vector<std::string> atsrouting;
+	std::vector<std::string> possibleDiff;
+	std::vector<std::string> avoidPoint;
+	std::regex ruleD("\\\d");
+	//split string into vector on space
+	while (ss >> buf)
+		atsrouting.push_back(buf);
+	auto currentPoint = atsrouting.begin();
+	auto cP = fixes.find_waypoint(*currentPoint);
+	points.push_back(cP);
+	if (!correctPoints.empty() && cP.m_name != correctPoints.begin()->m_name)
+		return points;
+	
+	auto correctCP = correctPoints.begin();
+	if (!correctPoints.empty())
+		correctCP++;
+	while (atsrouting.size()>1 &&currentPoint != (atsrouting.end() - 1))
+	{	
+		std::string airway = *(currentPoint + 1);
+		if (currentPoint + 2 == atsrouting.end())
+		{
+			
+		}
+		std::string nextPoint = *(currentPoint + 2);
+		std::string searchPoint = *currentPoint;
+		auto cP = fixes.find_waypoint(*currentPoint);
+		Waypoint sP = cP;
+		if (airway == "DCT")
+		{
+			auto fix = fixes.find_waypoint(nextPoint);
+			if (fix.m_name == "ERROR")
+			{
+				std::string logstring("Could not find " + nextPoint + " in database. Treating it like a waypoint without airway connections.");
+				LOG_F(INFO, logstring.c_str());
+				fix.m_name = nextPoint;
+			}
+			points.push_back(fix);
+			//if we have a deviation from the correct points right here already or reached the end of the required routing we exit.
+			if (!correctPoints.empty() && (correctCP == correctPoints.end() || fix.m_name != correctCP->m_name))
+				return points;
+			if (!correctPoints.empty())
+				correctCP++;
+			currentPoint += 2;
+			continue;
+		}
+		//cater for the case of implicit direct
+		else if (!std::regex_search(airway.begin(), airway.end(), ruleD))
+		{
+			nextPoint = airway;
+			auto fix = fixes.find_waypoint(nextPoint);
+			if (fix.m_name == "ERROR")
+			{
+				std::string logstring("Could not find " + nextPoint + " in database. Treating it like a waypoint without airway connections.");
+				LOG_F(INFO, logstring.c_str());
+				fix.m_name = nextPoint;
+			}
+			
+			points.push_back(fix);
+			if (!correctPoints.empty() && (correctCP == correctPoints.end() || fix.m_name != correctCP->m_name))
+				return points;
+			if (!correctPoints.empty())
+				correctCP++;
+			currentPoint += 1;
+			continue;
+		}
+		while (searchPoint != nextPoint)
+		{
+			auto pointsOnAirway = sP.getNextPointNameOnAirway(airway);
+			if (pointsOnAirway.size() > 1)
+			{
+				
+				for (auto elem : pointsOnAirway)
+				{
+					sP = fixes.find_waypoint(elem);
+					if (sP.m_name == "ERROR")
+						WayPointNotFound(elem);
+					//only on airway change two valid paths from one intersection
+					if (searchPoint != *currentPoint)
+					{
+						if (points.size() == 1 && points.back() == sP)
+							continue;
+						else if (points.size() > 1 && *(points.end() - 2) == sP)
+							continue;
+						else 
+						{
+							searchPoint = elem;
+							break;
+						}
+					}
+					else
+					{
+						auto foundaP = std::find(avoidPoint.begin(), avoidPoint.end(), elem);
+						if (points.size() == 1 && points.back() == sP)
+							continue;
+						if (avoidPoint.size() > 10)
+							AirwayWaypointConnectionNotFound(searchPoint,airway);
+						else if (points.size() > 1 && ( * (points.end() - 2) == sP)|| foundaP != avoidPoint.end())
+							continue;
+						else 
+						{
+							possibleDiff.push_back(searchPoint);
+							searchPoint = elem;
+							break;
+						}						
+					}
+										
+				}
+
+				points.push_back(sP);
+				if (!correctPoints.empty() && (correctCP == correctPoints.end()))
+					return points;
+				if (!correctPoints.empty())
+					correctCP++;
+			}
+			else if (pointsOnAirway.size() == 1 && pointsOnAirway.back() != "ERROR" && (points.size() == 0 || points.size() ==1 || (points.size()>1 && points.rbegin()[1] != pointsOnAirway.back())))
+			{
+				searchPoint = pointsOnAirway.back();
+				sP = fixes.find_waypoint(searchPoint);
+				if (sP.m_name == "ERROR") 
+				{
+					WayPointNotFound(searchPoint);
+					return points;
+				}
+					
+				points.push_back(sP);
+				if (!correctPoints.empty() && (correctCP == correctPoints.end() ||sP.m_name != correctCP->m_name))
+					return points;
+				if(!correctPoints.empty())
+					correctCP++;
+			}
+			else
+			{
+				if (possibleDiff.empty())
+				{
+					AirwayWaypointConnectionNotFound(points.back().m_name, airway);
+					return points;
+				}
+					
+				auto found = std::find(points.begin(), points.end(), possibleDiff.back());
+				avoidPoint.push_back((found + 1)->m_name);
+				points.erase(found + 1, points.end());
+				searchPoint = possibleDiff.back();
+				possibleDiff.pop_back();
+				sP = fixes.find_waypoint(searchPoint);
+			}
+		}
+		currentPoint += 2;
+	}
+	
+	return points;
 }

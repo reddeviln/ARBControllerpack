@@ -20,9 +20,113 @@
 #include <utility>
 #include <random>
 #include "TimerRadar.h"
+#include <stdexcept>
 #define INT_PART 4
 #define DEC_PART 3
 #pragma warning(disable : 4996)
+class Waypoint {
+	//stores one navdata waypoint
+public:
+	std::string m_name;
+	//first entry: airway name, second entry neighbor(s) on that airway
+	std::unordered_map<std::string, std::vector<std::string>> m_connections;
+	//constructor
+	Waypoint(std::string name)
+	{
+		m_name = name;
+	}
+	void addConnection(std::string airway, std::string neighbor)
+	{
+		auto found = m_connections.find(airway);
+		if (found == m_connections.end())
+		{
+			std::vector<std::string> neighborp;
+			neighborp.push_back(neighbor);
+			m_connections.emplace(std::make_pair(airway,neighborp));
+		}
+		else
+		{
+			std::vector<std::string> neighborp = found->second;
+			m_connections.erase(found);
+			neighborp.push_back(neighbor);
+			m_connections.emplace(std::make_pair(airway, neighborp));
+		}
+	}
+	std::vector<std::string> getNextPointNameOnAirway(std::string airway)
+	{
+		std::vector<std::string> mypoints;
+		auto found = m_connections.find(airway);
+		if (found == m_connections.end())
+			mypoints.push_back("ERROR");
+		else
+		{
+			mypoints = found->second;
+		}
+		return mypoints;
+	}
+	bool operator==(const Waypoint& rhs)
+	{
+		if (this->m_name == rhs.m_name)
+			return true;
+		else return false;
+	}
+	bool operator==(const std::string& rhs)
+	{
+		if (this->m_name == rhs)
+			return true;
+		else return false;
+	}
+	bool operator<(const Waypoint& rhs)
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
+	}
+	bool operator<(const Waypoint& rhs) const
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.m_name.begin(), rhs.m_name.end());
+	}
+	bool operator<(const std::string& rhs) const
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.begin(), rhs.end());
+	}
+	bool operator<(const std::string& rhs) 
+	{
+		return std::lexicographical_compare(m_name.begin(), m_name.end(), rhs.begin(), rhs.end());
+	}
+private:
+
+};
+
+class Fixes {
+	//stores all waypoints
+public:
+
+	Fixes() {};
+	void add_fix(Waypoint mypoint)
+	{
+		if (all_fixes.empty())
+		{
+			all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+			return;
+		}
+		auto found = all_fixes.find(mypoint.m_name);
+		if (found != all_fixes.end())
+			all_fixes.erase(found);
+		all_fixes.emplace(std::make_pair(mypoint.m_name, mypoint));
+	}
+	Waypoint find_waypoint(std::string name)
+		//finds a waypoint in the list by its name using binary search
+	{
+		auto found = all_fixes.find(name);
+		if (found == all_fixes.end()) 
+		{
+			return Waypoint("ERROR");;
+		}
+		return found->second;
+	}
+	
+private:
+	std::unordered_map<std::string,Waypoint> all_fixes;
+};
 
 class CTOTData
 	//this class is used as a storage. Each aircraft that gets a ctot assigned will be put in a CTOTData object. It contains the flightplan the CTOT and TOBT a switch if it was manually assigned
@@ -57,25 +161,32 @@ public:
 
 };
 
+void WayPointNotFound(std::string name);
+void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname);
+std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> points = std::vector<Waypoint>());
+
 class RouteTo
 	//This class stores the different standard routes to a destination icao.
 {
 public:
-	std::string mDEPICAO, mDestICAO, mEvenOdd, mLevelR, mRoute;
-	std::vector<std::string> endpoints;
-	RouteTo(std::string DepICAO, std::string DestICAO, std::string evenodd, std::string LevelR, std::string Route)
+	std::string mEvenOdd, mLevelR, mRoute;
+	std::vector<Waypoint> points;
+	std::vector<std::string> validDests;
+	RouteTo(std::string evenodd, std::string LevelR, std::string Route)
 	{
-		mDEPICAO = DepICAO;
-		mDestICAO = DestICAO;
 		mEvenOdd = evenodd;
 		mLevelR = LevelR;
 		mRoute = Route;
-		RouteTo::test();
-
+		points = parseATSPointsFromString(Route);
 	}
-
+	void newvalidDest(std::string Dest)
+	{
+		validDests.push_back(Dest);
+	}
 	bool isCruiseValid(int Flightlevel)
 	{
+		if (this->mEvenOdd == "ALL")
+			return true;
 		bool returnval = false;
 		if (Flightlevel > 40000)
 		{
@@ -106,6 +217,20 @@ public:
 					if (this->mEvenOdd == "EVEN")
 					{
 						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel <= std::stoi(restr) * 100) return true;
+						else return false;
+					}
+				}
+				else if (this->mLevelR.at(0) == '>')
+				{
+					std::string restr = this->mLevelR.substr(1, 3);
+					if (this->mEvenOdd == "ODD")
+					{
+						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel >= std::stoi(restr)) return true;
+						else return false;
+					}
+					if (this->mEvenOdd == "EVEN")
+					{
+						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel >= std::stoi(restr) * 100) return true;
 						else return false;
 					}
 				}
@@ -156,84 +281,71 @@ public:
 			return returnval;
 		}
 		return returnval;
+		
 	}
-	bool isRouteValid(std::string Route)
+	bool isRouteValid(EuroScopePlugIn::CFlightPlanExtractedRoute Route)
 	{
-		auto temp = makeAirwaysUnique(findAndReplaceAll(Route, " DCT ", " "));
-		auto check = temp.find(mRoute);
-		if (check == std::string::npos)
-		{
-			auto temp1 = findAndReplaceAll(mRoute, " DCT ", " ");
-			if (temp.find(temp1) == std::string::npos)
-				return false;
-			else
-				return true;
+		std::regex sid("[A-Z]*\\\d[A-Z]+");
+		std::vector<std::string> filedPoints;
+		std::smatch m;
+		int length = Route.GetPointsNumber();
+		std::string airwaylast="";
+		try {
+			
+			std::vector<std::string> espoints;
+			for (int i = 1; i <= length-2; i++)
+			{
+				std::string airway = Route.GetPointAirwayName(i);
+				std::string airwaynext = Route.GetPointAirwayName(i + 1);
+				if (std::regex_search(airway,m, sid) && (airway == airwaynext || airwaynext.empty()))
+					continue;
+				espoints.push_back(Route.GetPointName(i));
+				airwaylast = airway;
+			}
+			
+			filedPoints = espoints;
 		}
-
-		else return true;
+		
+		catch (...)
+		{
+			std::string logstring = "Exception thrown for route ";
+			logstring += Route.GetPointName(0);
+			logstring += " to ";
+			logstring += Route.GetPointName(length - 1);
+			LOG_F(ERROR, logstring.c_str());
+			return false;
+		}
+		std::string waypointNameShould, waypointNameIs;
+		if (points.size() > filedPoints.size()) 
+		{
+			return false;				
+		}
+		auto check = std::mismatch(points.begin(), points.end(), filedPoints.begin());
+		if (points.end() == check.first)
+			return true;
+		else
+		{
+			waypointNameShould = check.first->m_name;
+			return false;
+		}
 	}
 	static bool test()
 	{
 		return true;
 	}
-	std::string makeAirwaysUnique(std::string Route)
+	bool operator==(const RouteTo& rhs)
 	{
-		std::string buf;                 // Have a buffer string
-		std::stringstream ss(Route);       // Insert the string into a stream
-		std::vector<std::string> tokens; // Create vector to hold our words
-
-		while (ss >> buf)
-			tokens.push_back(buf);
-		auto tokenscopy = tokens;
-		tokens = RemoveDuplicatesInVector(tokens);
-		std::string result;
-		for (auto temp : tokens)
-		{
-
-			result += temp;
-			result += " ";
-		}
-		return result;
+		if (this->mRoute == rhs.mRoute)
+			return true;
+		else return false;
 	}
-	std::vector<std::string> RemoveDuplicatesInVector(std::vector<std::string> vec)
+	bool operator==(const std::string& rhs)
 	{
-		std::set<std::string> values;
-		//vec.erase(std::remove_if(vec.begin(), vec.end(), [&](const std::string & value) { return !values.insert(value).second; }), vec.end());
-		std::vector<std::string> vec2 = vec;
-		for (auto value : vec)
-		{
-			auto check = values.find(value);
-			if (values.end() == check)
-				values.insert(value);
-			else
-			{
-				auto check1 = std::find(vec2.begin(), vec2.end(), *check);
-				if (check1 != vec2.end() && *(check1 + 2) == *check)
-				{
-					vec2.erase(std::remove(vec2.begin(), check1 + 2, *(check1 + 1)));
-					auto check2 = std::find(vec2.begin(), vec2.end(), *check);
-					vec2.erase(std::remove(vec2.begin(), check2 + 1, *check2));
-				}
-			}
-		}
-		vec2.shrink_to_fit();
-		return vec2;
+		if (this->mRoute == rhs)
+			return true;
+		else return false;
 	}
-	std::string findAndReplaceAll(std::string data, std::string toSearch, std::string replaceStr)
-	{
-		// Get the first occurrence
-		size_t pos = data.find(toSearch);
-		// Repeat till end is reached
-		while (pos != std::string::npos)
-		{
-			// Replace this occurrence of Sub String
-			data.replace(pos, toSearch.size(), replaceStr);
-			// Get the next occurrence from the current position
-			pos = data.find(toSearch, pos + replaceStr.size());
-		}
-		return data;
-	}
-
+	
 };
 
 class RouteData
@@ -242,14 +354,15 @@ class RouteData
 public:
 	RouteData() {}
 	std::vector<RouteTo> Routes;
-	std::vector<std::string> icaos;
+	std::set<std::string> icaos;
 
 	std::vector<RouteTo> getDatafromICAO(std::string icao)
 	{
 		std::vector<RouteTo> routes;
-		for (auto temp : Routes)
+		for (auto &temp : Routes)
 		{
-			if (icao == temp.mDestICAO)
+			auto found = std::find(temp.validDests.begin(), temp.validDests.end(), icao);
+			if (found !=temp.validDests.end())
 				routes.push_back(temp);
 		}
 		return routes;
@@ -349,7 +462,7 @@ public:
 		return false;
 	}
 };
-
+void markStandsasOccupied(Stand mystand, std::string code, std::string icao);
 class CUAEController :
 	//The class that holds all our functions 
 	public EuroScopePlugIn::CPlugIn
@@ -405,7 +518,7 @@ public:
 		COLORREF * pRGB,
 		double * pFontSize);
 
-	std::string isFlightPlanValid(std::vector<RouteTo> dt, std::string Route, int level);
+	std::string isFlightPlanValid(std::vector<RouteTo> dt, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level);
 	//returnvalue: "o": valid
 	//             "L": level invalid but route valid
 	//             "R": route invalid but level valid
@@ -429,7 +542,7 @@ public:
 	void cleanupStands();
 	bool isDestValid(std::string callsign, EuroScopePlugIn::CFlightPlanData data);
 	Stand extractRandomStand(std::vector<Stand> stands, char size, std::string icao);
-	std::string getRouteRegion(std::unordered_map<std::string, RouteData> routedata, std::string icadep, std::string icaodest);
+	std::string getRouteRegion(const std::unordered_map<std::string, RouteData>& routedata, std::string icadep, std::string icaodest);
 	char determineAircraftCat(EuroScopePlugIn::CFlightPlan);
 	std::vector<Stand> getStandOfAircraft(EuroScopePlugIn::CPosition position);
 	void readStandFile(std::string dir, std::string airport);
@@ -465,4 +578,3 @@ public:
 	   The function recalculates all CTOTs that follow the "inserted" so the modified one.
 	*/
 };
-void markStandsasOccupied(Stand mystand, std::string code, std::string icao);

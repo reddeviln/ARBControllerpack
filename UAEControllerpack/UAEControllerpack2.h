@@ -285,18 +285,24 @@ public:
 	}
 	bool isRouteValid(EuroScopePlugIn::CFlightPlanExtractedRoute Route)
 	{
+		std::regex sid("[A-Z]*\\\d[A-Z]+");
 		std::vector<std::string> filedPoints;
+		std::smatch m;
 		int length = Route.GetPointsNumber();
+		std::string airwaylast="";
 		try {
 			
 			std::vector<std::string> espoints;
-			for (int i = 1; i < length; i++)
+			for (int i = 1; i <= length-2; i++)
 			{
 				std::string airway = Route.GetPointAirwayName(i);
-				if (airway.size() > 4)
+				std::string airwaynext = Route.GetPointAirwayName(i + 1);
+				if (std::regex_search(airway,m, sid) && (airway == airwaynext || airwaynext.empty()))
 					continue;
-				espoints.push_back(Route.GetPointName(i - 1));
+				espoints.push_back(Route.GetPointName(i));
+				airwaylast = airway;
 			}
+			
 			filedPoints = espoints;
 		}
 		

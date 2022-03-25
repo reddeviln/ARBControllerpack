@@ -208,10 +208,10 @@ public:
 
 				if (this->mLevelR.at(0) == '<')
 				{
-					std::string restr = this->mLevelR.substr(1, 3);
+					std::string restr = this->mLevelR.substr(1, mLevelR.length()-1);
 					if (this->mEvenOdd == "ODD")
 					{
-						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel <= std::stoi(restr)) return true;
+						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel <= std::stoi(restr) * 100) return true;
 						else return false;
 					}
 					if (this->mEvenOdd == "EVEN")
@@ -222,10 +222,10 @@ public:
 				}
 				else if (this->mLevelR.at(0) == '>')
 				{
-					std::string restr = this->mLevelR.substr(1, 3);
+					std::string restr = this->mLevelR.substr(1, mLevelR.length() - 1);
 					if (this->mEvenOdd == "ODD")
 					{
-						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel >= std::stoi(restr)) return true;
+						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel >= std::stoi(restr) * 100) return true;
 						else return false;
 					}
 					if (this->mEvenOdd == "EVEN")

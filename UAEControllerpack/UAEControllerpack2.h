@@ -219,6 +219,11 @@ public:
 						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel <= std::stoi(restr) * 100) return true;
 						else return false;
 					}
+					if (this->mEvenOdd == "ALL")
+					{
+						if (Flightlevel <= std::stoi(restr) * 100) return true;
+						else return false;
+					}
 				}
 				else if (this->mLevelR.at(0) == '>')
 				{
@@ -231,6 +236,11 @@ public:
 					if (this->mEvenOdd == "EVEN")
 					{
 						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel >= std::stoi(restr) * 100) return true;
+						else return false;
+					}
+					if (this->mEvenOdd == "ALL")
+					{
+						if (Flightlevel <= std::stoi(restr) * 100) return true;
 						else return false;
 					}
 				}

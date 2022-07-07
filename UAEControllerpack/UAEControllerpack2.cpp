@@ -157,7 +157,10 @@ CUAEController::CUAEController(void)
 	std::string navdir = directory;
 	
 	std::string from = "Plugins\\ARBControllerPack";
+	std::string from1 = "Plugins\\ARBControllerpack";
 	auto start_pos = navdir.find(from);
+	if (start_pos == std::string::npos)
+		start_pos = navdir.find(from1);
 	if (start_pos == std::string::npos)
 		LOG_F(ERROR, "Reinstall your sectorfile please directory setup does not match the expected.");
 	navdir.replace(start_pos, from.length(), "Navdata");

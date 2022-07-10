@@ -24,6 +24,7 @@
 #define INT_PART 4
 #define DEC_PART 3
 #pragma warning(disable : 4996)
+
 class Waypoint {
 	//stores one navdata waypoint
 public:
@@ -101,6 +102,10 @@ class Fixes {
 public:
 
 	Fixes() {};
+	static bool test()
+	{
+		return true;
+	}
 	void add_fix(Waypoint mypoint)
 	{
 		if (all_fixes.empty())
@@ -160,224 +165,99 @@ public:
 	}
 
 };
-
-void WayPointNotFound(std::string name);
-void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname);
 std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> points = std::vector<Waypoint>());
 
-class RouteTo
-	//This class stores the different standard routes to a destination icao.
+std::vector<std::string> splitStringAtDelimiter(std::string string, char delimiter)
+{
+	std::vector<std::string> result;
+	if (string != "NONE")
+	{
+		std::stringstream ss(string);
+		std::string item;
+		while (std::getline(ss, item, delimiter))
+			result.push_back(item);
+	}
+	return result;
+}
+
+class Route 
 {
 public:
-	std::string mEvenOdd, mLevelR, mRoute;
+	Route(char type, std::string copn, std::string copx, std::string routing,std::string levels, std::string onlyarr, std::string notarr, std::string onlydep, std::string notdep)
+	{
+		switch (type) 
+		{
+		case 'T': 
+		{
+			m_type = 0;
+		}
+		case 'A':
+		{
+			m_type = 1;
+		}
+		case 'D':
+		{
+			m_type = 2;
+		}
+		}
+		levelrestriction = levels;
+		routingATS = routing;
+		points = parseATSPointsFromString(routing);
+		onlyForArrivalInto = splitStringAtDelimiter(onlyarr, ':');
+		notForArrivalInto = splitStringAtDelimiter(notarr, ':');
+		onlyforDepFrom = splitStringAtDelimiter(onlydep, ':');
+		notforDepFrom = splitStringAtDelimiter(notdep, ':');
+	};
 	std::vector<Waypoint> points;
-	std::vector<std::string> validDests;
-	RouteTo(std::string evenodd, std::string LevelR, std::string Route)
+	int m_type; // 0: transit, 1: arrival, 2:departure
+	std::string levelrestriction;
+	std::string routingATS;
+	std::vector<std::string> onlyForArrivalInto, notForArrivalInto, onlyforDepFrom, notforDepFrom;
+	std::string getCOPN()
 	{
-		mEvenOdd = evenodd;
-		mLevelR = LevelR;
-		mRoute = Route;
-		points = parseATSPointsFromString(Route);
-	}
-	void newvalidDest(std::string Dest)
-	{
-		validDests.push_back(Dest);
-	}
-	bool isCruiseValid(int Flightlevel)
-	{
-		if (this->mEvenOdd == "ALL")
-			return true;
-		bool returnval = false;
-		if (Flightlevel > 40000)
+		if (points.empty())
 		{
-			if (this->mLevelR.empty())
-			{
-				if (this->mEvenOdd == "ODD")
-				{
-					if ((Flightlevel / 1000) % 4 == 1) return true;
-					else return false;
-				}
-				if (this->mEvenOdd == "EVEN")
-				{
-					if ((Flightlevel / 1000) % 4 == 3) return true;
-					else return false;
-				}
-			}
-			else
-			{
-
-				if (this->mLevelR.at(0) == '<')
-				{
-					std::string restr = this->mLevelR.substr(1, mLevelR.length()-1);
-					if (this->mEvenOdd == "ODD")
-					{
-						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "EVEN")
-					{
-						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "ALL")
-					{
-						if (Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-				}
-				else if (this->mLevelR.at(0) == '>')
-				{
-					std::string restr = this->mLevelR.substr(1, mLevelR.length() - 1);
-					if (this->mEvenOdd == "ODD")
-					{
-						if (((Flightlevel / 1000) % 4 == 1) && Flightlevel >= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "EVEN")
-					{
-						if (((Flightlevel / 1000) % 4 == 3) && Flightlevel >= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "ALL")
-					{
-						if (Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-				}
-				else
-				{
-					int restr = std::stoi(this->mLevelR);
-					return (Flightlevel == restr * 100);
-				}
-			}
-		}
-		else {
-			if (this->mLevelR.empty())
-			{
-				if (this->mEvenOdd == "ODD")
-				{
-					if ((Flightlevel / 1000) % 2 == 1) return true;
-					else return false;
-				}
-				if (this->mEvenOdd == "EVEN")
-				{
-					if ((Flightlevel / 1000) % 2 == 0) return true;
-					else return false;
-				}
-			}
-			else
-			{
-
-				if (this->mLevelR.at(0) == '<')
-				{
-					std::string restr = this->mLevelR.substr(1, 3);
-					if (this->mEvenOdd == "ODD")
-					{
-						if (((Flightlevel / 1000) % 2 == 1) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-					if (this->mEvenOdd == "EVEN")
-					{
-						if (((Flightlevel / 1000) % 2 == 0) && Flightlevel <= std::stoi(restr) * 100) return true;
-						else return false;
-					}
-				}
-				else
-				{
-					int restr = std::stoi(this->mLevelR);
-					return (Flightlevel == restr * 100);
-				}
-			}
-			return returnval;
-		}
-		return returnval;
-		
-	}
-	bool isRouteValid(EuroScopePlugIn::CFlightPlanExtractedRoute Route)
-	{
-		std::regex sid("[A-Z]*\\\d[A-Z]+");
-		std::vector<std::string> filedPoints;
-		std::smatch m;
-		int length = Route.GetPointsNumber();
-		std::string airwaylast="";
-		try {
-			
-			std::vector<std::string> espoints;
-			for (int i = 1; i <= length-2; i++)
-			{
-				std::string airway = Route.GetPointAirwayName(i);
-				std::string airwaynext = Route.GetPointAirwayName(i + 1);
-				if (std::regex_search(airway,m, sid) && (airway == airwaynext || airwaynext.empty()))
-					continue;
-				espoints.push_back(Route.GetPointName(i));
-				airwaylast = airway;
-			}
-			
-			filedPoints = espoints;
-		}
-		
-		catch (...)
-		{
-			std::string logstring = "Exception thrown for route ";
-			logstring += Route.GetPointName(0);
-			logstring += " to ";
-			logstring += Route.GetPointName(length - 1);
+			std::string logstring = "We got asked for the COPN of "+routingATS+ " but the point parsing has not worked. Something is wrong here.";
 			LOG_F(ERROR, logstring.c_str());
-			return false;
 		}
-		std::string waypointNameShould, waypointNameIs;
-		if (points.size() > filedPoints.size()) 
-		{
-			return false;				
-		}
-		auto check = std::mismatch(points.begin(), points.end(), filedPoints.begin());
-		if (points.end() == check.first)
-			return true;
-		else
-		{
-			waypointNameShould = check.first->m_name;
-			return false;
-		}
-	}
-	static bool test()
-	{
-		return true;
-	}
-	bool operator==(const RouteTo& rhs)
-	{
-		if (this->mRoute == rhs.mRoute)
-			return true;
-		else return false;
-	}
-	bool operator==(const std::string& rhs)
-	{
-		if (this->mRoute == rhs)
-			return true;
-		else return false;
+			
+		return points.begin()->m_name;
 	}
 	
 };
-
-class RouteData
-	//this Class holds all RouteTos
+class FIR
+	//holds information on valid routings and COPN/COPX 
 {
 public:
-	RouteData() {}
-	std::vector<RouteTo> Routes;
-	std::set<std::string> icaos;
-
-	std::vector<RouteTo> getDatafromICAO(std::string icao)
+	FIR(std::string name) 
 	{
-		std::vector<RouteTo> routes;
-		for (auto &temp : Routes)
-		{
-			auto found = std::find(temp.validDests.begin(), temp.validDests.end(), icao);
-			if (found !=temp.validDests.end())
-				routes.push_back(temp);
-		}
-		return routes;
+		ICAOabb = name;
+	};
+	std::string ICAOabb;
+	void add_Route(Route newRoute)
+		//adds a Routing to the FIR
+	{
+		std::string key = newRoute.getCOPN();
+		Routes.insert(std::make_pair(key, newRoute));
+		COPNs.push_back(key);
 	}
+	std::vector<Route> getAllRoutesfromCOPN(std::string COPN)
+		//returns all Routes for a given COPN
+	{
+		std::vector<Route> returnvalue;
+		auto result = Routes.equal_range(COPN);
+		for (auto elem = result.first; elem != result.second; elem++)
+		{
+			returnvalue.push_back(elem->second);
+		}
+		return returnvalue;
+	}
+private:
+	std::vector<Waypoint> COPNs, COPXs;
+	std::unordered_multimap<std::string, Route> Routes;
 };
+void WayPointNotFound(std::string name);
+void AirwayWaypointConnectionNotFound(std::string pointname, std::string airwayname);
 
 class Stand
 {
@@ -528,7 +408,7 @@ public:
 		COLORREF * pRGB,
 		double * pFontSize);
 
-	std::string isFlightPlanValid(std::vector<RouteTo> dt, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level);
+	std::string isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level);
 	//returnvalue: "o": valid
 	//             "L": level invalid but route valid
 	//             "R": route invalid but level valid
@@ -545,14 +425,47 @@ public:
 		RECT Area);
 	inline  virtual void    OnRadarTargetPositionUpdate(EuroScopePlugIn::CRadarTarget RadarTarget);
 
-
+	
 	inline  virtual bool    OnCompileCommand(const char * sCommandLine);
 	inline  virtual void    OnTimer(int Counter);
 
 	void cleanupStands();
+	std::vector<std::string> getRoutePoints(EuroScopePlugIn::CFlightPlanExtractedRoute Route)
+	{
+		std::regex sid("[A-Z]*\\\d[A-Z]+");
+		std::vector<std::string> filedPoints;
+		std::smatch m;
+		int length = Route.GetPointsNumber();
+		std::string airwaylast = "";
+		try {
+
+			std::vector<std::string> espoints;
+			for (int i = 1; i <= length - 2; i++)
+			{
+				std::string airway = Route.GetPointAirwayName(i);
+				std::string airwaynext = Route.GetPointAirwayName(i + 1);
+				if (std::regex_search(airway, m, sid) && (airway == airwaynext || airwaynext.empty()))
+					continue;
+				espoints.push_back(Route.GetPointName(i));
+				airwaylast = airway;
+			}
+
+			filedPoints = espoints;
+			return filedPoints;
+		}
+
+		catch (...)
+		{
+			std::string logstring = "Exception thrown for route ";
+			logstring += Route.GetPointName(0);
+			logstring += " to ";
+			logstring += Route.GetPointName(length - 1);
+			LOG_F(ERROR, logstring.c_str());
+			return filedPoints;
+		}
+	}
 	bool isDestValid(std::string callsign, EuroScopePlugIn::CFlightPlanData data);
 	Stand extractRandomStand(std::vector<Stand> stands, char size, std::string icao);
-	std::string getRouteRegion(const std::unordered_map<std::string, RouteData>& routedata, std::string icadep, std::string icaodest);
 	char determineAircraftCat(EuroScopePlugIn::CFlightPlan);
 	std::vector<Stand> getStandOfAircraft(EuroScopePlugIn::CPosition position);
 	void readStandFile(std::string dir, std::string airport);

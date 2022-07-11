@@ -167,18 +167,7 @@ public:
 };
 std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> points = std::vector<Waypoint>());
 
-std::vector<std::string> splitStringAtDelimiter(std::string string, char delimiter)
-{
-	std::vector<std::string> result;
-	if (string != "NONE")
-	{
-		std::stringstream ss(string);
-		std::string item;
-		while (std::getline(ss, item, delimiter))
-			result.push_back(item);
-	}
-	return result;
-}
+std::vector<std::string> splitStringAtDelimiter(std::string string, char delimiter);
 
 class Route 
 {
@@ -202,6 +191,8 @@ public:
 		}
 		levelrestriction = levels;
 		routingATS = routing;
+		m_copn = copn;
+		m_copx = copx;
 		points = parseATSPointsFromString(routing);
 		onlyForArrivalInto = splitStringAtDelimiter(onlyarr, ':');
 		notForArrivalInto = splitStringAtDelimiter(notarr, ':');
@@ -209,21 +200,59 @@ public:
 		notforDepFrom = splitStringAtDelimiter(notdep, ':');
 	};
 	std::vector<Waypoint> points;
+	std::string m_copn,m_copx;
 	int m_type; // 0: transit, 1: arrival, 2:departure
 	std::string levelrestriction;
 	std::string routingATS;
 	std::vector<std::string> onlyForArrivalInto, notForArrivalInto, onlyforDepFrom, notforDepFrom;
 	std::string getCOPN()
 	{
-		if (points.empty())
-		{
-			std::string logstring = "We got asked for the COPN of "+routingATS+ " but the point parsing has not worked. Something is wrong here.";
-			LOG_F(ERROR, logstring.c_str());
-		}
-			
-		return points.begin()->m_name;
+		return m_copn;
+	}	std::string getCOPX()
+	{
+		return m_copx;
 	}
-	
+	bool isValidForDepDestPair(std::string dep, std::string dest)
+	{
+		if (onlyForArrivalInto.empty() && notForArrivalInto.empty() && onlyforDepFrom.empty() && notforDepFrom.empty())
+			return true;
+		auto onlyArrival = std::find(onlyForArrivalInto.begin(), onlyForArrivalInto.end(), dest);
+		auto notForArrival = std::find(notForArrivalInto.begin(), notForArrivalInto.end(), dest);
+		auto onlyDep = std::find(onlyforDepFrom.begin(), onlyforDepFrom.end(), dep);
+		auto notDep = std::find(notforDepFrom.begin(), notforDepFrom.end(), dep);
+		if (notDep != notforDepFrom.end() || notForArrival != notForArrivalInto.end())
+			return false;
+		if (!onlyForArrivalInto.empty() && onlyArrival == onlyForArrivalInto.end())
+			return false;
+		if (!onlyforDepFrom.empty() && onlyDep == onlyforDepFrom.end())
+			return false;
+		return true;
+	}
+	bool isValidForLevel(int level)
+	{
+		if (levelrestriction == "NONE")
+			return true;
+		int restriction = std::stoi(levelrestriction.substr(0, 3));
+		if (levelrestriction.ends_with("A"))
+		{
+			if (restriction * 100 <= level)
+				return true;
+			else return false;
+		}	
+		if (levelrestriction.ends_with("B"))
+		{
+			if (restriction * 100 >= level)
+				return true;
+			else return false;
+		}
+		if (levelrestriction.ends_with("0") || levelrestriction.ends_with("5"))
+		{
+			if (restriction * 100 == level)
+				return true;
+			else return false;
+		}
+		else return false;
+	}
 };
 class FIR
 	//holds information on valid routings and COPN/COPX 
@@ -240,6 +269,7 @@ public:
 		std::string key = newRoute.getCOPN();
 		Routes.insert(std::make_pair(key, newRoute));
 		COPNs.push_back(key);
+		COPXs.push_back(newRoute.points.back());
 	}
 	std::vector<Route> getAllRoutesfromCOPN(std::string COPN)
 		//returns all Routes for a given COPN
@@ -251,6 +281,66 @@ public:
 			returnvalue.push_back(elem->second);
 		}
 		return returnvalue;
+	}
+	auto isValidInThisFIRUntil(EuroScopePlugIn::CFlightPlan fp, int pointsRemaining, std::vector<std::string>::iterator& copn)
+	{
+		bool arrivalThisFIR = false;
+		bool departureThisFIR = false;
+		std::string dest = fp.GetFlightPlanData().GetDestination();
+		std::string origin = fp.GetFlightPlanData().GetOrigin();
+		if (std::find(COPXs.begin(), COPXs.end(), dest) != COPXs.end())
+		{
+			arrivalThisFIR = true;
+		}
+		if (origin == *copn)
+		{
+			departureThisFIR = true;
+		}
+		std::vector<Route> allRoutes = this->getAllRoutesfromCOPN(*copn);
+		for (auto& checkRoute : allRoutes)
+		{
+			auto& PointsRoute = checkRoute.points;
+			if (*copn == origin)
+				copn++;
+			if (pointsRemaining < PointsRoute.size())
+				continue;
+			auto mismatch = std::mismatch(PointsRoute.begin(), PointsRoute.end(), copn);
+			if (mismatch.first == PointsRoute.end())
+			{
+				if (departureThisFIR && checkRoute.m_type != 2)
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not classified as a departure routing in this FIR.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
+				}
+				
+				if (arrivalThisFIR && checkRoute.m_type != 1)
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not classified as a arrival routing in this FIR.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
+				}
+				if (!checkRoute.isValidForDepDestPair(origin, dest))
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not valid for this departure/destination pairing.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
+				}
+				
+				std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+				LOG_F(INFO, logstring.c_str());
+				copn = mismatch.second;
+				copn--;
+				return checkRoute;
+			}
+		}
+		std::string routing = fp.GetFlightPlanData().GetRoute();
+		std::string logstring = "No matching route (" + routing + ") for " + fp.GetCallsign() + " found in " + this->ICAOabb;
+		LOG_F(INFO, logstring.c_str());
+		return Route('T',"ERROR","ERROR", "VUTEB","NONE","NONE","NONE","NONE","NONE");
 	}
 private:
 	std::vector<Waypoint> COPNs, COPXs;

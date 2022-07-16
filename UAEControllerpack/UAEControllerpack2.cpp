@@ -633,7 +633,15 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			auto route = FlightPlan.GetExtractedRoute();
 	
 			std::string valid = isFlightPlanValid(FlightPlan, route, fpdata.GetFinalAltitude());
-			*pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
+			
+			if (valid == "r") 
+			{
+				valid = "R";
+				*pColorCode = EuroScopePlugIn::TAG_COLOR_RGB_DEFINED;
+				*pRGB = RGB(255, 191, 0);
+			}
+			else *pColorCode = EuroScopePlugIn::TAG_COLOR_EMERGENCY;
+
 			
 			if (strcmp(valid.c_str(), "o") == 0) return;
 			strcpy(sItemString, valid.c_str());
@@ -774,7 +782,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 		}
 	}
 }
-std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level)
+std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level, bool showHelp)
 {
 	bool cruisevalid = true;
 	auto filed_points = getRoutePoints(route);
@@ -820,7 +828,80 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		logstring += ". However it was not valid for the filed level.";
 		LOG_F(INFO, logstring.c_str());
 	}
-	if (validRoute.getCOPN() == "ERROR") return "R";
+	if (validRoute.getCOPN() == "ERROR")
+	{
+		if (!showHelp)
+		{
+			if (validRouting.size()>0) return "r";
+			else return "R";
+		}
+		else
+		{
+			std::string handler = "Routing info for ";
+			handler += fp.GetCallsign();
+			std::string message = "Routing is invalid after " + *currentCOPN + " in " + curFIRICAO + " FIR. Valid routes from " + *currentCOPN;
+
+			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+			auto messageRoutes = currentFIR.getAllRoutesfromCOPN(*currentCOPN);
+			for (auto& temp : messageRoutes)
+			{
+				std::string tempMessage = temp.routingATS;
+				switch (temp.m_type)
+				{
+				case 0: { tempMessage += ". Valid for transits."; break; }
+				case 1: { tempMessage += ". Valid for arrivals in this FIR."; break; }
+				case 2: { tempMessage += ". Valid for departures in this FIR."; break; }
+				}
+				tempMessage += "Restrictions: ";
+				if (temp.levelrestriction != "NONE")
+					tempMessage += "Level " + temp.levelrestriction + ";";
+				if (!temp.notForArrivalInto.empty())
+				{
+					tempMessage += "not for destinations:";
+					for (auto& elem : temp.notForArrivalInto)
+					{
+						tempMessage += " ";
+						tempMessage += elem;
+					}
+					tempMessage += ";";
+				}
+				if (!temp.notforDepFrom.empty())
+				{
+					tempMessage += "not for departures from:";
+					for (auto& elem : temp.notforDepFrom)
+					{
+						tempMessage += " ";
+						tempMessage += elem;
+					}
+					tempMessage += ";";
+				}
+				if (!temp.onlyForArrivalInto.empty())
+				{
+					tempMessage += "only for destinations:";
+					for (auto& elem : temp.onlyForArrivalInto)
+					{
+						tempMessage += " ";
+						tempMessage += elem;
+					}
+					tempMessage += ";";
+				}
+				if (!temp.onlyforDepFrom.empty())
+				{
+					tempMessage += "only for departures from:";
+					for (auto& elem : temp.onlyforDepFrom)
+					{
+						tempMessage += " ";
+						tempMessage += elem;
+					}
+					tempMessage += ";";
+				}
+				DisplayUserMessage(handler.c_str(), "ARBControllerPack", tempMessage.c_str(), true, true, true, true, false);
+			}
+			return "";
+		}
+
+		
+	}
 	validRouting.push_back(validRoute);
 	while (validRouting.back().getCOPX() != fpdata.GetDestination())
 	{
@@ -837,17 +918,27 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		}
 		if (allRoutes.empty())
 		{
-			std::string logstring = "No route from COPX" + validRouting.back().getCOPX() + " found for aircraft ";
-			logstring += fp.GetCallsign();
-			logstring += " from ";
-			logstring += fpdata.GetOrigin();
-			logstring += " to ";
-			logstring += fpdata.GetDestination();
-			logstring += ". The filed routing was ";
-			logstring += fpdata.GetRoute();
-			logstring += ".";
-			LOG_F(WARNING, logstring.c_str());
-			return "R";
+			auto dest = fp.GetFlightPlanData().GetDestination();
+			for (auto& curFIR : allFIRs)
+			{
+				auto copxs = curFIR.second.COPXs;
+				if (copxs.find(dest)!= copxs.end())
+				{
+					if (!showHelp)
+					{
+						return "R";
+					}
+					else 
+					{
+						std::string handler = "Routing info for ";
+						handler += fp.GetCallsign();
+						std::string message = "No routing data found after " + *currentCOPN + " in " + curFIRICAO + " FIR. This means the route is invalid because the destination lies in the coverage area. Check the routematrix for a valid route.";
+						DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+						return "";
+					}
+				}
+			}
+			return "o";
 		}
 		validRoute = currentFIR.isValidInThisFIRUntil(fp, std::distance(currentCOPN, filed_points.end()), currentCOPN);
 		if (!validRoute.isValidForLevel(fp.GetFinalAltitude()))
@@ -857,7 +948,78 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 			logstring += ". However it was not valid for the filed level.";
 			LOG_F(INFO, logstring.c_str());
 		}
-		if (validRoute.getCOPN() == "ERROR") return "R";
+		if (validRoute.getCOPN() == "ERROR")
+		{
+			if (!showHelp)
+			{
+				if (validRouting.size() > 0) return "r";
+				else return "R";
+			}
+			else
+			{
+				std::string handler = "Routing info for ";
+				handler += fp.GetCallsign();
+				std::string message = "Routing is invalid after " + *currentCOPN + " in " + curFIRICAO + " FIR. Valid routes from " + *currentCOPN;
+
+				DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+				auto messageRoutes = currentFIR.getAllRoutesfromCOPN(*currentCOPN);
+				for (auto& temp : messageRoutes)
+				{
+					std::string tempMessage = temp.routingATS;
+					switch (temp.m_type)
+					{
+					case 0: { tempMessage += ". Valid for transits."; break; }
+					case 1: { tempMessage += ". Valid for arrivals into this FIR."; break; }
+					case 2: { tempMessage += ". Valid for departures from this FIR."; break; }
+					}
+					tempMessage += " Restrictions: ";
+					if (temp.levelrestriction != "NONE")
+						tempMessage += "Level " + temp.levelrestriction + ";";
+					if (!temp.notForArrivalInto.empty())
+					{
+						tempMessage += "not for destinations:";
+						for (auto& elem : temp.notForArrivalInto)
+						{
+							tempMessage += " ";
+							tempMessage += elem;
+						}
+						tempMessage += ";";
+					}
+					if (!temp.notforDepFrom.empty())
+					{
+						tempMessage += "not for departures from:";
+						for (auto& elem : temp.notforDepFrom)
+						{
+							tempMessage += " ";
+							tempMessage += elem;
+						}
+						tempMessage += ";";
+					}
+					if (!temp.onlyForArrivalInto.empty())
+					{
+						tempMessage += "only for destinations:";
+						for (auto& elem : temp.onlyForArrivalInto)
+						{
+							tempMessage += " ";
+							tempMessage += elem;
+						}
+						tempMessage += ";";
+					}
+					if (!temp.onlyforDepFrom.empty())
+					{
+						tempMessage += "only for departures from:";
+						for (auto& elem : temp.onlyforDepFrom)
+						{
+							tempMessage += " ";
+							tempMessage += elem;
+						}
+						tempMessage += ";";
+					}
+					DisplayUserMessage(handler.c_str(), "ARBControllerPack", tempMessage.c_str(), true, true, true, true, false);
+				}
+				return "";
+			}
+		}
 		validRouting.push_back(validRoute);
 	}
 	if (!cruisevalid)
@@ -1892,20 +2054,8 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	{
 		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
 			break;
-		std::string handlername = "Mandatory route for ";
-		handlername += fp.GetCallsign();
-		std::string dest = fpdata.GetDestination();
-		//TODO
-		break;
-	}
-	case TAG_FUNC_ROUTING_OPT:
-	{
-		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
-			break;
-		std::string handlername = "Optional route for ";
-		handlername += fp.GetCallsign();
-		std::string dest = fpdata.GetDestination();
-		//TODO
+		isFlightPlanValid(fp, fp.GetExtractedRoute(), fp.GetFinalAltitude(), true);
+		
 		break;
 	}
 	

@@ -179,14 +179,17 @@ public:
 		case 'T': 
 		{
 			m_type = 0;
+			break;
 		}
 		case 'A':
 		{
 			m_type = 1;
+			break;
 		}
 		case 'D':
 		{
 			m_type = 2;
+			break;
 		}
 		}
 		levelrestriction = levels;
@@ -208,7 +211,8 @@ public:
 	std::string getCOPN()
 	{
 		return m_copn;
-	}	std::string getCOPX()
+	}	
+	std::string getCOPX()
 	{
 		return m_copx;
 	}
@@ -268,8 +272,8 @@ public:
 	{
 		std::string key = newRoute.getCOPN();
 		Routes.insert(std::make_pair(key, newRoute));
-		COPNs.push_back(key);
-		COPXs.push_back(newRoute.points.back());
+		COPNs.insert(key);
+		COPXs.insert(newRoute.getCOPX());
 	}
 	std::vector<Route> getAllRoutesfromCOPN(std::string COPN)
 		//returns all Routes for a given COPN
@@ -330,8 +334,8 @@ public:
 					continue;
 				}
 				
-				std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
-				LOG_F(INFO, logstring.c_str());
+				//std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+				//LOG_F(INFO, logstring.c_str());
 				copn = mismatch.second;
 				copn--;
 				return checkRoute;
@@ -342,8 +346,7 @@ public:
 		LOG_F(INFO, logstring.c_str());
 		return Route('T',"ERROR","ERROR", "VUTEB","NONE","NONE","NONE","NONE","NONE");
 	}
-private:
-	std::vector<Waypoint> COPNs, COPXs;
+	std::set<std::string> COPNs, COPXs;
 	std::unordered_multimap<std::string, Route> Routes;
 };
 void WayPointNotFound(std::string name);
@@ -498,7 +501,7 @@ public:
 		COLORREF * pRGB,
 		double * pFontSize);
 
-	std::string isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level);
+	std::string isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level, bool showHelp = false);
 	//returnvalue: "o": valid
 	//             "L": level invalid but route valid
 	//             "R": route invalid but level valid

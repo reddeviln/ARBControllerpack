@@ -849,8 +849,8 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 				switch (temp.m_type)
 				{
 				case 0: { tempMessage += ". Valid for transits."; break; }
-				case 1: { tempMessage += ". Valid for arrivals in this FIR."; break; }
-				case 2: { tempMessage += ". Valid for departures in this FIR."; break; }
+				case 1: { tempMessage += ". Valid for arrivals into "; tempMessage += temp.m_copx; break; }
+				case 2: { tempMessage += ". Valid for departures from "; tempMessage += temp.m_copn; break; }
 				}
 				tempMessage += "Restrictions: ";
 				if (temp.levelrestriction != "NONE")
@@ -969,8 +969,8 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 					switch (temp.m_type)
 					{
 					case 0: { tempMessage += ". Valid for transits."; break; }
-					case 1: { tempMessage += ". Valid for arrivals into this FIR."; break; }
-					case 2: { tempMessage += ". Valid for departures from this FIR."; break; }
+					case 1: { tempMessage += ". Valid for arrivals into "; tempMessage += temp.m_copx; break; }
+					case 2: { tempMessage += ". Valid for departures from "; tempMessage += temp.m_copn; break; }
 					}
 					tempMessage += " Restrictions: ";
 					if (temp.levelrestriction != "NONE")

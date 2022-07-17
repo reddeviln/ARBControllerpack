@@ -218,6 +218,8 @@ public:
 	}
 	bool isValidForDepDestPair(std::string dep, std::string dest)
 	{
+		if (m_type == 1 && m_copx != dest) return false;
+		if (m_type == 2 && m_copn != dep) return false;
 		if (onlyForArrivalInto.empty() && notForArrivalInto.empty() && onlyforDepFrom.empty() && notforDepFrom.empty())
 			return true;
 		auto onlyArrival = std::find(onlyForArrivalInto.begin(), onlyForArrivalInto.end(), dest);

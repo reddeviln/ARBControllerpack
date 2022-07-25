@@ -372,19 +372,26 @@ CUAEController::CUAEController(void)
 				{
 					try
 					{
-						io::CSVReader<9, io::trim_chars<' '>, io::no_quote_escape<','>> in2(name);
-						in2.read_header(io::ignore_extra_column, "TYPE", "COPN", "COPX", "ROUTE", "LEVELS", "ONLY_AVAIL_DEST", "NOT_AVAIL_DEST", "ONLY_AVAIL_DEP", "NOT_AVAIL_DEP");
-						std::string type, copn, copx, route, levels, onlydest, notdest, onlydep, notdep;
+						io::CSVReader<10, io::trim_chars<' '>, io::no_quote_escape<','>> in2(name);
+						in2.read_header(io::ignore_extra_column, "TYPE", "COPN", "COPX", "EVENODD", "ROUTE", "LEVELS", "ONLY_AVAIL_DEST", "NOT_AVAIL_DEST", "ONLY_AVAIL_DEP", "NOT_AVAIL_DEP");
+						std::string type, copn, copx, evenodd, route, levels, onlydest, notdest, onlydep, notdep;
 						FIR newFIR(m.str(1));
-						while (in2.read_row(type, copn, copx, route, levels, onlydest, notdest, onlydep, notdep))
+						while (in2.read_row(type, copn, copx, evenodd, route, levels, onlydest, notdest, onlydep, notdep))
 						{
 							auto types = splitStringAtDelimiter(type, ':');
 							for (auto& elem : types)
 							{
-								Route temp(*elem.begin(), copn, copx, route, levels, onlydest, notdest, onlydep, notdep);
-								newFIR.add_Route(temp);
+								auto copns = splitStringAtDelimiter(copn, ':');
+								auto copxs = splitStringAtDelimiter(copx, ':');
+								for (auto& copnelem : copns)
+								{
+									for (auto& copxelem : copxs)
+									{
+										Route temp(*elem.begin(), copnelem, copxelem, evenodd, route, levels, onlydest, notdest, onlydep, notdep);
+										newFIR.add_Route(temp);
+									}
+								}
 							}
-
 						}
 						allFIRs.insert(std::make_pair(m.str(1), newFIR));
 						std::string logstring;
@@ -853,8 +860,13 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 				case 2: { tempMessage += ". Valid for departures from "; tempMessage += temp.m_copn; break; }
 				}
 				tempMessage += "Restrictions: ";
-				if (temp.levelrestriction != "NONE")
-					tempMessage += "Level " + temp.levelrestriction + ";";
+				if (!temp.levelrestriction.empty())
+					tempMessage += "Level restrictions:";
+					for (auto& elem : temp.levelrestriction)
+					{
+						tempMessage += " ";
+						tempMessage += elem;
+					}
 				if (!temp.notForArrivalInto.empty())
 				{
 					tempMessage += "not for destinations:";
@@ -903,7 +915,7 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		
 	}
 	validRouting.push_back(validRoute);
-	while (validRouting.back().getCOPX() != fpdata.GetDestination())
+	while (validRouting.back().getCOPX() != fpdata.GetDestination() && validRouting.back().points.back() != filed_points.rbegin()[1])
 	{
 		for (auto& curFIR : allFIRs)
 		{
@@ -973,8 +985,13 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 					case 2: { tempMessage += ". Valid for departures from "; tempMessage += temp.m_copn; break; }
 					}
 					tempMessage += " Restrictions: ";
-					if (temp.levelrestriction != "NONE")
-						tempMessage += "Level " + temp.levelrestriction + ";";
+					if (!temp.levelrestriction.empty())
+						tempMessage += "Level restrictions:";
+					for (auto& elem : temp.levelrestriction)
+					{
+						tempMessage += " ";
+						tempMessage += elem;
+					}
 					if (!temp.notForArrivalInto.empty())
 					{
 						tempMessage += "not for destinations:";

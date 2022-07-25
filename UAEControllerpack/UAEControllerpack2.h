@@ -172,7 +172,7 @@ std::vector<std::string> splitStringAtDelimiter(std::string string, char delimit
 class Route 
 {
 public:
-	Route(char type, std::string copn, std::string copx, std::string routing,std::string levels, std::string onlyarr, std::string notarr, std::string onlydep, std::string notdep)
+	Route(char type, std::string copn, std::string copx, std::string even, std::string routing,std::string levels, std::string onlyarr, std::string notarr, std::string onlydep, std::string notdep)
 	{
 		switch (type) 
 		{
@@ -192,8 +192,8 @@ public:
 			break;
 		}
 		}
-		levelrestriction = levels;
 		routingATS = routing;
+		evenodd = even;
 		m_copn = copn;
 		m_copx = copx;
 		points = parseATSPointsFromString(routing);
@@ -201,13 +201,14 @@ public:
 		notForArrivalInto = splitStringAtDelimiter(notarr, ':');
 		onlyforDepFrom = splitStringAtDelimiter(onlydep, ':');
 		notforDepFrom = splitStringAtDelimiter(notdep, ':');
+		levelrestriction = splitStringAtDelimiter(levels, ':');
 	};
+	std::string evenodd;
 	std::vector<Waypoint> points;
 	std::string m_copn,m_copx;
 	int m_type; // 0: transit, 1: arrival, 2:departure
-	std::string levelrestriction;
 	std::string routingATS;
-	std::vector<std::string> onlyForArrivalInto, notForArrivalInto, onlyforDepFrom, notforDepFrom;
+	std::vector<std::string> onlyForArrivalInto, notForArrivalInto, onlyforDepFrom, notforDepFrom,levelrestriction;
 	std::string getCOPN()
 	{
 		return m_copn;
@@ -236,28 +237,64 @@ public:
 	}
 	bool isValidForLevel(int level)
 	{
-		if (levelrestriction == "NONE")
-			return true;
-		int restriction = std::stoi(levelrestriction.substr(0, 3));
-		if (levelrestriction.ends_with("A"))
+		bool returnvalue = true;
+		for (auto elem : levelrestriction)
 		{
-			if (restriction * 100 <= level)
+			if (elem == "NONE")
 				return true;
-			else return false;
-		}	
-		if (levelrestriction.ends_with("B"))
+			int restriction = std::stoi(elem.substr(0, 3));
+			if (elem.ends_with("A"))
+			{
+				if (restriction * 100 <= level)
+					returnvalue =  true;
+				else return false;
+			}
+			if (elem.ends_with("B"))
+			{
+				if (restriction * 100 >= level)
+					returnvalue = true;
+				else return false;
+			}
+			if (elem.ends_with("0") || elem.ends_with("5"))
+			{
+				if (restriction * 100 == level)
+					return true;
+				else return false;
+			}
+		}
+		//now checking evenodd
+		if (evenodd == "ALL") return true;
+		if (level > 40000) 
 		{
-			if (restriction * 100 >= level)
-				return true;
+			if (evenodd == "ODD")
+			{
+				if (((level / 1000) % 4 == 1)) return true;
+				else return false;
+			}
+			if (evenodd == "EVEN")
+			{
+				if (((level / 1000) % 4 == 3)) return true;
+				else return false;
+			}
 			else return false;
 		}
-		if (levelrestriction.ends_with("0") || levelrestriction.ends_with("5"))
+		else
 		{
-			if (restriction * 100 == level)
-				return true;
+			if (evenodd == "ODD")
+			{
+				if ((level / 1000) % 2 == 1) return true;
+				else return false;
+			}
+			if (evenodd == "EVEN")
+			{
+				if ((level / 1000) % 2 == 0) return true;
+				else return false;
+			}
 			else return false;
+			
 		}
-		else return false;
+		return returnvalue;
+		
 	}
 };
 class FIR
@@ -320,15 +357,19 @@ public:
 					LOG_F(INFO, logstring.c_str());
 					continue;
 				}
-				
-				if (arrivalThisFIR && checkRoute.m_type != 1)
+				else if (arrivalThisFIR && checkRoute.m_type != 1)
 				{
 					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
 					logstring += ". However it was not classified as a arrival routing in this FIR.";
 					LOG_F(INFO, logstring.c_str());
 					continue;
 				}
-				if (!checkRoute.isValidForDepDestPair(origin, dest))
+				else if (arrivalThisFIR)
+				{
+					if (*mismatch.second != dest)
+						continue;
+				}
+				else if (!checkRoute.isValidForDepDestPair(origin, dest))
 				{
 					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
 					logstring += ". However it was not valid for this departure/destination pairing.";
@@ -346,7 +387,7 @@ public:
 		std::string routing = fp.GetFlightPlanData().GetRoute();
 		std::string logstring = "No matching route (" + routing + ") for " + fp.GetCallsign() + " found in " + this->ICAOabb;
 		LOG_F(INFO, logstring.c_str());
-		return Route('T',"ERROR","ERROR", "VUTEB","NONE","NONE","NONE","NONE","NONE");
+		return Route('T',"ERROR","ERROR", "ALL","VUTEB","NONE","NONE","NONE","NONE","NONE");
 	}
 	std::set<std::string> COPNs, COPXs;
 	std::unordered_multimap<std::string, Route> Routes;

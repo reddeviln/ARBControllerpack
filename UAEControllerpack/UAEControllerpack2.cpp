@@ -119,8 +119,8 @@ CUAEController::CUAEController(void)
 	RegisterTagItemFunction("Assign Stand", TAG_FUNC_ASSIGN_POPUP);
 	RegisterTagItemFunction("Clear", TAG_FUNC_CLEAR);
 	RegisterTagItemType("RouteValid", TAG_ITEM_ROUTE_VALID);
-	RegisterTagItemFunction("Get routes (mandatory)", TAG_FUNC_ROUTING);
-	RegisterTagItemFunction("Get routes (optional)", TAG_FUNC_ROUTING_OPT);
+	RegisterTagItemFunction("Routing help smart", TAG_FUNC_ROUTING);
+	RegisterTagItemFunction("Routing help full", TAG_FUNC_ROUTING_OPT);
 	RegisterTagItemType("COPX Short form/Destination", TAG_ITEM_COPXSHORT);
 	RegisterTagItemType("Shortening of SID/arriving airport", TAG_ITEM_APPSHORT);
 	//m_TOSequenceList = RegisterFpList("T/O Sequence List");
@@ -474,7 +474,6 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 		return;
 	auto fpdata = FlightPlan.GetFlightPlanData();
 	std::string dep = fpdata.GetOrigin();
-	int     idx;
 	switch (ItemCode) //when Euroscope wants to know the value of these items we return it. Switch by which one it wants
 	{
 		
@@ -623,6 +622,8 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			auto fpdata = FlightPlan.GetFlightPlanData();
 			if (FlightPlan.GetClearenceFlag())
 			{
+				auto cdata = FlightPlan.GetControllerAssignedData();
+				cdata.SetFlightStripAnnotation(3, "");
 				std::string logstring = "Aircraft ";
 				logstring += FlightPlan.GetCallsign();
 				logstring += " is skipped because Clearance flag is set.";
@@ -655,87 +656,6 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 			return;
 		}
 		
-		{
-			if ((idx = _SelectAcIndex(FlightPlan)) < 0)
-			{
-				//now we check if another controller assigned a ctot we need the remark string and other data for that
-
-				auto remarks = fpdata.GetRemarks();
-				const char* test = NULL;
-
-				//check if the remarks contains the phrase /CTOT
-				test = strstr(remarks, "/CTOT");
-
-				if (test)
-				{
-					CTime temp;
-					temp = CTime::GetCurrentTime();
-					tm t, t1;
-					temp.GetGmtTm(&t);
-					temp.GetLocalTm(&t1);
-					std::string callsign = FlightPlan.GetCallsign();
-					std::string logstring = "We already found a valid CTOT for " + callsign;
-					LOG_F(INFO, logstring.c_str());
-					//if yes then a controller already assigned a ctot and the estimated dep time on the flightplan is the ctot
-					auto ctot = fpdata.GetEstimatedDepartureTime();
-					CTOTData newone;
-
-
-					//calculating the timezone 
-					CTimeSpan diff = CTime(1900 + t.tm_year, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec) - CTime(1900 + t1.tm_year, t1.tm_mon + 1, t1.tm_mday, t1.tm_hour, t1.tm_min, t1.tm_sec);
-
-					//casting our string to int
-					int input = atoi(ctot);
-
-					//get the minutes (integer divison for the win)
-					int test = input - (input / 100) * 100;
-
-					//safeguard for something silly
-					if (input >= 2400 || test >= 60) return;
-
-					//construct the new CTOT object and add it to the sequence. We didnt calculate anything here just read the data from the flightplan
-					newone.CTOT = CTime(1900 + t.tm_year, t.tm_mon + 1, t.tm_mday, input / 100, input - (input / 100) * 100, 0) - diff;
-					newone.flightplan = FlightPlan;
-					newone.TOBT = newone.CTOT - taxitime;
-					if (dep == "OMDB")
-					{
-						m_sequence_OMDB.push_back(newone);
-						std::sort(m_sequence_OMDB.begin(), m_sequence_OMDB.end());
-					}
-					if (dep == "OMSJ")
-					{
-						m_sequence_OMSJ.push_back(newone);
-						std::sort(m_sequence_OMSJ.begin(), m_sequence_OMSJ.end());
-					}
-					if (dep == "OMDW")
-					{
-						m_sequence_OMDW.push_back(newone);
-						std::sort(m_sequence_OMDW.begin(), m_sequence_OMDW.end());
-					}
-					if (dep == "OMAA")
-					{
-						m_sequence_OMDB.push_back(newone);
-						std::sort(m_sequence_OMDB.begin(), m_sequence_OMDB.end());
-					}
-
-
-				}
-				return;
-			}
-			int seq = 0;
-			if (dep == "OMDB")
-				seq = m_sequence_OMDB[idx].sequence;
-			if (dep == "OMSJ")
-				seq = m_sequence_OMSJ[idx].sequence;
-			if (dep == "OMDW")
-				seq = m_sequence_OMDW[idx].sequence;
-			if (dep == "OMAA")
-				seq = m_sequence_OMAA[idx].sequence;
-			CString temp3;
-			temp3.Format("%d", seq);
-			strcpy(sItemString, temp3);
-			break;
-		}
 		case TAG_ITEM_COPXSHORT:
 		{
 			std::string copx = FlightPlan.GetNextFirCopxPointName();
@@ -836,83 +756,12 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		LOG_F(INFO, logstring.c_str());
 	}
 	if (validRoute.getCOPN() == "ERROR")
-	{
-		if (!showHelp)
-		{
-			if (validRouting.size()>0) return "r";
-			else return "R";
-		}
-		else
-		{
-			std::string handler = "Routing info for ";
-			handler += fp.GetCallsign();
-			std::string message = "Routing is invalid after " + *currentCOPN + " in " + curFIRICAO + " FIR. Valid routes from " + *currentCOPN;
-
-			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
-			auto messageRoutes = currentFIR.getAllRoutesfromCOPN(*currentCOPN);
-			for (auto& temp : messageRoutes)
-			{
-				std::string tempMessage = temp.routingATS;
-				switch (temp.m_type)
-				{
-				case 0: { tempMessage += ". Valid for transits."; break; }
-				case 1: { tempMessage += ". Valid for arrivals into "; tempMessage += temp.m_copx; break; }
-				case 2: { tempMessage += ". Valid for departures from "; tempMessage += temp.m_copn; break; }
-				}
-				tempMessage += "Restrictions: ";
-				if (!temp.levelrestriction.empty())
-					tempMessage += "Level restrictions:";
-					for (auto& elem : temp.levelrestriction)
-					{
-						tempMessage += " ";
-						tempMessage += elem;
-					}
-				if (!temp.notForArrivalInto.empty())
-				{
-					tempMessage += "not for destinations:";
-					for (auto& elem : temp.notForArrivalInto)
-					{
-						tempMessage += " ";
-						tempMessage += elem;
-					}
-					tempMessage += ";";
-				}
-				if (!temp.notforDepFrom.empty())
-				{
-					tempMessage += "not for departures from:";
-					for (auto& elem : temp.notforDepFrom)
-					{
-						tempMessage += " ";
-						tempMessage += elem;
-					}
-					tempMessage += ";";
-				}
-				if (!temp.onlyForArrivalInto.empty())
-				{
-					tempMessage += "only for destinations:";
-					for (auto& elem : temp.onlyForArrivalInto)
-					{
-						tempMessage += " ";
-						tempMessage += elem;
-					}
-					tempMessage += ";";
-				}
-				if (!temp.onlyforDepFrom.empty())
-				{
-					tempMessage += "only for departures from:";
-					for (auto& elem : temp.onlyforDepFrom)
-					{
-						tempMessage += " ";
-						tempMessage += elem;
-					}
-					tempMessage += ";";
-				}
-				DisplayUserMessage(handler.c_str(), "ARBControllerPack", tempMessage.c_str(), true, true, true, true, false);
-			}
-			return "";
-		}
-
-		
+	{		
+		auto cdata = fp.GetControllerAssignedData();
+		std::string annotation = *currentCOPN + "," + currentFIR.ICAOabb;
+		bool success = cdata.SetFlightStripAnnotation(3, annotation.c_str());
+		if (validRouting.size() > 0) return "r";
+		else return "R";
 	}
 	validRouting.push_back(validRoute);
 	while (validRouting.back().getCOPX() != fpdata.GetDestination() && validRouting.back().points.back() != filed_points.rbegin()[1])
@@ -936,18 +785,12 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 				auto copxs = curFIR.second.COPXs;
 				if (copxs.find(dest)!= copxs.end())
 				{
-					if (!showHelp)
-					{
-						return "R";
-					}
-					else 
-					{
-						std::string handler = "Routing info for ";
-						handler += fp.GetCallsign();
-						std::string message = "No routing data found after " + *currentCOPN + " in " + curFIRICAO + " FIR. This means the route is invalid because the destination lies in the coverage area. Check the routematrix for a valid route.";
-						DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
-						return "";
-					}
+					
+					auto cdata = fp.GetControllerAssignedData();
+					std::string annotation = *currentCOPN + "," + curFIR.second.ICAOabb;
+					cdata.SetFlightStripAnnotation(3, annotation.c_str());
+					return "R";
+					
 				}
 			}
 			return "o";
@@ -961,81 +804,12 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 			LOG_F(INFO, logstring.c_str());
 		}
 		if (validRoute.getCOPN() == "ERROR")
-		{
-			if (!showHelp)
-			{
-				if (validRouting.size() > 0) return "r";
-				else return "R";
-			}
-			else
-			{
-				std::string handler = "Routing info for ";
-				handler += fp.GetCallsign();
-				std::string message = "Routing is invalid after " + *currentCOPN + " in " + curFIRICAO + " FIR. Valid routes from " + *currentCOPN;
-
-				DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
-				auto messageRoutes = currentFIR.getAllRoutesfromCOPN(*currentCOPN);
-				for (auto& temp : messageRoutes)
-				{
-					std::string tempMessage = temp.routingATS;
-					switch (temp.m_type)
-					{
-					case 0: { tempMessage += ". Valid for transits."; break; }
-					case 1: { tempMessage += ". Valid for arrivals into "; tempMessage += temp.m_copx; break; }
-					case 2: { tempMessage += ". Valid for departures from "; tempMessage += temp.m_copn; break; }
-					}
-					tempMessage += " Restrictions: ";
-					if (!temp.levelrestriction.empty())
-						tempMessage += "Level restrictions:";
-					for (auto& elem : temp.levelrestriction)
-					{
-						tempMessage += " ";
-						tempMessage += elem;
-					}
-					if (!temp.notForArrivalInto.empty())
-					{
-						tempMessage += "not for destinations:";
-						for (auto& elem : temp.notForArrivalInto)
-						{
-							tempMessage += " ";
-							tempMessage += elem;
-						}
-						tempMessage += ";";
-					}
-					if (!temp.notforDepFrom.empty())
-					{
-						tempMessage += "not for departures from:";
-						for (auto& elem : temp.notforDepFrom)
-						{
-							tempMessage += " ";
-							tempMessage += elem;
-						}
-						tempMessage += ";";
-					}
-					if (!temp.onlyForArrivalInto.empty())
-					{
-						tempMessage += "only for destinations:";
-						for (auto& elem : temp.onlyForArrivalInto)
-						{
-							tempMessage += " ";
-							tempMessage += elem;
-						}
-						tempMessage += ";";
-					}
-					if (!temp.onlyforDepFrom.empty())
-					{
-						tempMessage += "only for departures from:";
-						for (auto& elem : temp.onlyforDepFrom)
-						{
-							tempMessage += " ";
-							tempMessage += elem;
-						}
-						tempMessage += ";";
-					}
-					DisplayUserMessage(handler.c_str(), "ARBControllerPack", tempMessage.c_str(), true, true, true, true, false);
-				}
-				return "";
-			}
+		{			
+			auto cdata = fp.GetControllerAssignedData();
+			std::string annotation = *currentCOPN + "," + currentFIR.ICAOabb;
+			bool success = cdata.SetFlightStripAnnotation(3, annotation.c_str());
+			if (validRouting.size() > 0) return "r";
+			else return "R";
 		}
 		validRouting.push_back(validRoute);
 	}
@@ -1115,7 +889,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 	fp = FlightPlanSelectASEL();
 	auto fpdata = fp.GetFlightPlanData();
 	std::string dep = fpdata.GetOrigin();
-	int idx = _SelectAcIndex(fp);
+
 	if (!fp.IsValid())
 		return;
 
@@ -2067,13 +1841,210 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			LOG_F(INFO, "FP amend NOT successful");
 		break;
 	}
+	case TAG_FUNC_ROUTING_OPT:
+	{
+		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
+			break;
+		std::string handler = "Routing info for ";
+		handler += fp.GetCallsign();
+		auto cdata = fp.GetControllerAssignedData();
+		std::string flightstrip = cdata.GetFlightStripAnnotation(3);
+		auto data = splitStringAtDelimiter(flightstrip, ',');
+		if (data.size() != 2)
+		{
+			std::string logstring = "Somehow the flightstrip did not contain the data we expected. We got " + flightstrip +" for aircraft ";
+			logstring += fp.GetCallsign();
+			LOG_F(WARNING, logstring.c_str());
+			return;
+		}
+		std::string message = "Routing is invalid after " + *data.begin() + " in " + *data.rbegin() + " FIR. Valid routes from " + *data.begin();
+		auto currentFIR = allFIRs.find(*data.rbegin());
+		if (currentFIR == allFIRs.end()) return;
+		DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+		auto messageRoutes = currentFIR->second.getAllRoutesfromCOPN(*data.begin());
+		for (auto& temp : messageRoutes)
+		{
+			std::string tempMessage = temp.routingATS;
+			switch (temp.m_type)
+			{
+			case 0: { tempMessage += ". Valid for transits."; break; }
+			case 1: { tempMessage += ". Valid for arrivals into "; tempMessage += temp.m_copx; break; }
+			case 2: { tempMessage += ". Valid for departures from "; tempMessage += temp.m_copn; break; }
+			}
+			tempMessage += " Restrictions: ";
+			if (!temp.levelrestriction.empty())
+				tempMessage += "Level restrictions:";
+			for (auto& elem : temp.levelrestriction)
+			{
+				tempMessage += " ";
+				tempMessage += elem;
+				
+			}
+			tempMessage += "; ";
+			if (!temp.notForArrivalInto.empty())
+			{
+				tempMessage += "Not for destinations:";
+				for (auto& elem : temp.notForArrivalInto)
+				{
+					tempMessage += " ";
+					tempMessage += elem;
+				}
+				tempMessage += "; ";
+			}
+			if (!temp.notforDepFrom.empty())
+			{
+				tempMessage += "Not for departures from:";
+				for (auto& elem : temp.notforDepFrom)
+				{
+					tempMessage += " ";
+					tempMessage += elem;
+				}
+				tempMessage += "; ";
+			}
+			if (!temp.onlyForArrivalInto.empty())
+			{
+				tempMessage += "Only for destinations:";
+				for (auto& elem : temp.onlyForArrivalInto)
+				{
+					tempMessage += " ";
+					tempMessage += elem;
+				}
+				tempMessage += "; ";
+			}
+			if (!temp.onlyforDepFrom.empty())
+			{
+				tempMessage += "Only for departures from:";
+				for (auto& elem : temp.onlyforDepFrom)
+				{
+					tempMessage += " ";
+					tempMessage += elem;
+				}
+				tempMessage += "; ";
+			}
+			DisplayUserMessage(handler.c_str(), "ARBControllerPack", tempMessage.c_str(), true, true, true, true, false);
+		}
+		
+		break;
+	}
 	case TAG_FUNC_ROUTING:
 	{
 		if (!fp.GetTrackingControllerIsMe() && strcmp(fp.GetTrackingControllerCallsign(), "") != 0)
 			break;
-		isFlightPlanValid(fp, fp.GetExtractedRoute(), fp.GetFinalAltitude(), true);
-		
-		break;
+		std::string handler = "Routing suggestion for ";
+		std::string message;
+		handler += fp.GetCallsign();
+		auto cdata = fp.GetControllerAssignedData();
+		std::string flightstrip = cdata.GetFlightStripAnnotation(3);
+		auto data = splitStringAtDelimiter(flightstrip, ',');
+		if (data.size() != 2)
+		{
+			std::string logstring = "Somehow the flightstrip did not contain the data we expected. We got " + flightstrip + " for aircraft ";
+			logstring += fp.GetCallsign();
+			LOG_F(WARNING, logstring.c_str());
+			return;
+		}
+		std::string dep, dest;
+		dep = fp.GetFlightPlanData().GetOrigin();
+		dest = fp.GetFlightPlanData().GetDestination();
+		auto currentFIR = allFIRs.find(*data.rbegin());
+		if (currentFIR == allFIRs.end()) return;
+		auto copn = *data.begin();
+		std::string filedCOPX;
+		auto copxs = currentFIR->second.COPXs;
+		auto copns = currentFIR->second.COPNs;
+		auto routesCOPN = currentFIR->second.getAllRoutesfromCOPN(copn);
+		auto routesDEP = currentFIR->second.getAllRoutesfromCOPN(dep);
+		auto routePoints = getRoutePoints(fp.GetExtractedRoute());
+		//case error is in arriving FIR
+		if (copxs.find(dest) != copxs.end())
+		{
+			for (auto& elem : routesCOPN)
+			{
+				if (elem.m_type == 1 && elem.getCOPX() == dest)
+				{
+					message = "Flights from " + copn + " to " + dest + " shall use ";
+					message += elem.routingATS + " in "+ *data.rbegin() + " FIR.";
+					DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+					return;
+				}
+			}
+			auto routesToDest = currentFIR->second.getAllRoutesToCOPX(dest);
+			message = "Flights to " + dest + " shall route via one of the options below in "+ *data.rbegin() + " FIR: ";
+			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+			for (auto& elem : routesToDest)
+			{
+				if (std::find(elem.notforDepFrom.begin(), elem.notforDepFrom.end(), dep) != elem.notforDepFrom.end())
+					continue;
+				message = elem.routingATS;
+				DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+				
+			}
+			return;
+		}
+		//check if a copx has been filed and if yes extract it
+		auto itcopn = std::find(routePoints.begin(), routePoints.end(), copn);
+		for (itcopn; itcopn != routePoints.end(); itcopn++)
+		{
+			auto found = std::find(copxs.begin(), copxs.end(), *itcopn);
+			if (found != copxs.end())
+			{
+				filedCOPX = *found;
+				break;
+			}
+
+		}
+		//case error is in departing FIR
+		if (copns.find(dep) != copns.end())
+		{
+			if (!filedCOPX.empty())
+			{
+				for (auto& elem : routesDEP)
+				{
+					if (elem.m_type == 2 && elem.getCOPX() == filedCOPX)
+					{
+						message = "Flights from " + dep + " to " + filedCOPX + " shall use ";
+						message += elem.routingATS + " in " + *data.rbegin() + " FIR.";
+						DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+						return;
+					}
+				}
+			}
+			message = "Flights from " + dep + " shall route via one of the options below in " + *data.rbegin() + " FIR: ";
+			for (auto& elem : routesDEP)
+			{
+				if (std::find(elem.onlyForArrivalInto.begin(), elem.onlyForArrivalInto.end(), dest) != elem.onlyForArrivalInto.end())
+					continue;
+				message = elem.routingATS;
+				DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+				return;
+			}
+		}
+		//case transit error
+		if (!filedCOPX.empty())
+		{
+			for (auto& elem : routesCOPN)
+			{
+				if (elem.m_type == 0 && elem.getCOPX() == filedCOPX)
+				{
+					message = "Flights from " + copn + " to " + filedCOPX + " shall use ";
+					message += elem.routingATS + " in " + *data.rbegin() + " FIR.";
+					DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+					return;
+				}
+			}
+		}
+		message = "Flights from " + copn + " shall route via one of the options below in " + *data.rbegin() + " FIR: ";
+		for (auto& elem : routesDEP)
+		{
+			if (std::find(elem.onlyForArrivalInto.begin(), elem.onlyForArrivalInto.end(), dest) != elem.onlyForArrivalInto.end())
+				continue;
+			message = elem.routingATS;
+			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+			return;
+		}
+		message = "Smart suggestions for fixing the route failed. Please use your own brain by selecting an option from the routematrix or from the list that appears by right clicking the error symbol in the flightplan list.";
+		DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
+		return;
 	}
 	
 	}// switch by the function ID
@@ -2100,69 +2071,6 @@ std::vector<Stand> CUAEController::getStandOfAircraft(EuroScopePlugIn::CPosition
 		}
 	}
 	return returnvalue;
-}
-int CUAEController::_SelectAcIndex(EuroScopePlugIn::CFlightPlan flightplan)
-{
-	// helper function to search our sequence for "flightplan"
-	int i = 0;
-	CString temp2 = flightplan.GetCallsign();
-
-	if (m_sequence_OMDB.empty() && m_sequence_OMSJ.empty() && m_sequence_OMDW.empty() && m_sequence_OMAA.empty())
-	{
-		return -1;
-	}
-	for (const CTOTData& test : m_sequence_OMDB)
-	{
-		try {
-			CString temp1 = test.flightplan.GetCallsign();
-			if (temp1.Compare(temp2) == 0)
-			{
-				return  i;
-			}
-			i++;
-		}
-		catch (const std::exception) { continue; }
-	}
-	i = 0;
-	for (const CTOTData& test : m_sequence_OMSJ)
-	{
-		try {
-			CString temp1 = test.flightplan.GetCallsign();
-			if (temp1.Compare(temp2) == 0)
-			{
-				return  i;
-			}
-			i++;
-		}
-		catch (const std::exception) { continue; }
-	}
-	i = 0;
-	for (const CTOTData& test : m_sequence_OMDW)
-	{
-		try {
-			CString temp1 = test.flightplan.GetCallsign();
-			if (temp1.Compare(temp2) == 0)
-			{
-				return  i;
-			}
-			i++;
-		}
-		catch (const std::exception) { continue; }
-	}
-	i = 0;
-	for (const CTOTData& test : m_sequence_OMAA)
-	{
-		try {
-			CString temp1 = test.flightplan.GetCallsign();
-			if (temp1.Compare(temp2) == 0)
-			{
-				return  i;
-			}
-			i++;
-		}
-		catch (const std::exception) { continue; }
-	}
-	return -1;
 }
 void CUAEController::cleanupStands()
 {

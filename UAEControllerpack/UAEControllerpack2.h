@@ -132,39 +132,6 @@ public:
 private:
 	std::unordered_map<std::string,Waypoint> all_fixes;
 };
-
-class CTOTData
-	//this class is used as a storage. Each aircraft that gets a ctot assigned will be put in a CTOTData object. It contains the flightplan the CTOT and TOBT a switch if it was manually assigned
-{
-public:
-	CTOTData() {}
-	EuroScopePlugIn::CFlightPlan flightplan;
-	CTime CTOT, TOBT;
-	int sequence;
-	bool manual = false;
-	bool operator==(const CTOTData& rhs)
-		//overwriting the == and < operator to make use of the STL algorithms for sorting and finding lateron
-	{
-		if ((this->flightplan.GetCallsign() == rhs.flightplan.GetCallsign()) && this->CTOT == rhs.CTOT && this->sequence == rhs.sequence && this->TOBT == rhs.TOBT)
-		{
-			return true;
-		}
-		return false;
-	}
-	bool operator<(const CTOTData& rhs)
-	{
-		if (this->CTOT < rhs.CTOT)
-		{
-			return true;
-		}
-		return false;
-	}
-	static bool test()
-	{
-		return true;
-	}
-
-};
 std::vector<Waypoint> parseATSPointsFromString(std::string route, std::vector<Waypoint> points = std::vector<Waypoint>());
 
 std::vector<std::string> splitStringAtDelimiter(std::string string, char delimiter);
@@ -292,9 +259,7 @@ public:
 			}
 			else return false;
 			
-		}
-		return returnvalue;
-		
+		}		
 	}
 };
 class FIR
@@ -325,6 +290,16 @@ public:
 		}
 		return returnvalue;
 	}
+	std::vector<Route> getAllRoutesToCOPX(std::string COPX)
+	{
+		std::vector<Route> returnvalue;
+		for (auto& elem : Routes)
+		{
+			if (elem.second.getCOPX() == COPX)
+				returnvalue.push_back(elem.second);
+		}
+		return returnvalue;
+	}
 	auto isValidInThisFIRUntil(EuroScopePlugIn::CFlightPlan fp, int pointsRemaining, std::vector<std::string>::iterator& copn)
 	{
 		bool arrivalThisFIR = false;
@@ -344,7 +319,11 @@ public:
 		{
 			auto& PointsRoute = checkRoute.points;
 			if (*copn == origin)
+			{
 				copn++;
+				pointsRemaining--;
+			}
+				
 			if (pointsRemaining < PointsRoute.size())
 				continue;
 			auto mismatch = std::mismatch(PointsRoute.begin(), PointsRoute.end(), copn);
@@ -498,10 +477,7 @@ public:
 	//the list displayed in euroscope
 	EuroScopePlugIn::CFlightPlanList  m_TOSequenceList;
 	//this vector holds a CTOTData for each aircraft
-	std::vector<CTOTData> m_sequence_OMDB;
-	std::vector<CTOTData> m_sequence_OMSJ;
-	std::vector<CTOTData> m_sequence_OMDW;
-	std::vector<CTOTData> m_sequence_OMAA;
+
 
 
 	CUAEController(void);
@@ -607,33 +583,7 @@ public:
 	void readStandFile(std::string dir, std::string airport);
 
 	void readCallsignFile(std::string dir, std::string airport);
-	void assignCTOT(bool asap, EuroScopePlugIn::CFlightPlan);
-	/*This function is called when a CTOT should be assigned to an aircraft. It constructs the new CTOTData object and redoes the sequence
-		Input: bool asap (if an aircraft should be assigned a ctot that is as close to now as possible or at the end of the sequence)
-			   CFlightPlan flightplan (the corresponding flightplan)
-	*/
 
 
-	void updateListOMDB();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-	void updateListOMSJ();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-	void updateListOMDW();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-	void updateListOMAA();
-	//This function is called from various other functions to do housekeeping on the actual euroscope list
-
-	CTimeSpan getIncrement(EuroScopePlugIn::CFlightPlan fp1, EuroScopePlugIn::CFlightPlan fp2);
-
-
-	/*This function is the heart of the implementation. It determines which separation fp2 needs to maintain to the preceeding aircraft fp1.
-	  It takes into account the sids and wake turbulence category of the aircraft
-	*/
-
-
-	void recalculateCTOT(CTOTData inserted);
-
-	/* This function is called when we change the order of the sequence either by assigning an aircraft and asap ctot or by manually assigning one.
-	   The function recalculates all CTOTs that follow the "inserted" so the modified one.
-	*/
+	
 };

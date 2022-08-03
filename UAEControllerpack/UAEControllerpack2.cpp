@@ -712,6 +712,7 @@ void CUAEController::OnGetTagItem(EuroScopePlugIn::CFlightPlan FlightPlan,
 std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, EuroScopePlugIn::CFlightPlanExtractedRoute route, int level, bool showHelp)
 {
 	bool cruisevalid = true;
+	bool furtherRouteAvail = true;
 	auto filed_points = getRoutePoints(route);
 	auto fpdata = fp.GetFlightPlanData();
 	std::vector<Route> allRoutes, validRouting;
@@ -769,15 +770,16 @@ std::string CUAEController::isFlightPlanValid(EuroScopePlugIn::CFlightPlan fp, E
 		for (auto& curFIR : allFIRs)
 		{
 			allRoutes = curFIR.second.getAllRoutesfromCOPN(validRouting.back().getCOPX());
-			if (!allRoutes.empty())
+			if (!allRoutes.empty()&&curFIRICAO!=curFIR.second.ICAOabb)
 			{
 				curFIRICAO = curFIR.second.ICAOabb;
 				currentFIR = curFIR.second;
+				furtherRouteAvail = true;
 				break;
 			}
-
+			furtherRouteAvail = false;
 		}
-		if (allRoutes.empty())
+		if (!furtherRouteAvail)
 		{
 			auto dest = fp.GetFlightPlanData().GetDestination();
 			for (auto& curFIR : allFIRs)
@@ -2522,9 +2524,9 @@ std::vector<Waypoint>  parseATSPointsFromString(std::string route, std::vector<W
 					WaypointErrors.push_back(nextPoint);
 					std::string logstring("Could not find " + nextPoint + " in database. Treating it like a waypoint without airway connections.");
 					LOG_F(INFO, logstring.c_str());
-					fix.m_name = nextPoint;
+					
 				}
-				
+				fix.m_name = nextPoint;
 			}
 			points.push_back(fix);
 			//if we have a deviation from the correct points right here already or reached the end of the required routing we exit.

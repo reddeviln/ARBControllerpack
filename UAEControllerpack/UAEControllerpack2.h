@@ -204,11 +204,16 @@ public:
 	}
 	bool isValidForLevel(int level)
 	{
-		bool returnvalue = true;
+		bool returnvalue = false;
+		if (levelrestriction.empty()) returnvalue = true;
 		for (auto elem : levelrestriction)
 		{
 			if (elem == "NONE")
-				return true;
+			{
+				returnvalue = true;
+				break;
+			}
+				
 			int restriction = std::stoi(elem.substr(0, 3));
 			if (elem.ends_with("A"))
 			{
@@ -235,12 +240,12 @@ public:
 		{
 			if (evenodd == "ODD")
 			{
-				if (((level / 1000) % 4 == 1)) return true;
+				if (((level / 1000) % 4 == 1)&& returnvalue) return true;
 				else return false;
 			}
 			if (evenodd == "EVEN")
 			{
-				if (((level / 1000) % 4 == 3)) return true;
+				if (((level / 1000) % 4 == 3) && returnvalue) return true;
 				else return false;
 			}
 			else return false;
@@ -249,12 +254,12 @@ public:
 		{
 			if (evenodd == "ODD")
 			{
-				if ((level / 1000) % 2 == 1) return true;
+				if ((level / 1000) % 2 == 1 && returnvalue) return true;
 				else return false;
 			}
 			if (evenodd == "EVEN")
 			{
-				if ((level / 1000) % 2 == 0) return true;
+				if ((level / 1000) % 2 == 0 && returnvalue) return true;
 				else return false;
 			}
 			else return false;

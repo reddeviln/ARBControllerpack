@@ -2653,5 +2653,6 @@ std::vector<std::string> splitStringAtDelimiter(std::string string, char delimit
 		while (std::getline(ss, item, delimiter))
 			result.push_back(item);
 	}
+	
 	return result;
 }

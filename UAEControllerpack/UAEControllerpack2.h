@@ -352,6 +352,10 @@ public:
 				{
 					if (*mismatch.second != dest)
 						continue;
+					else if (checkRoute.m_copx == dest)
+						return checkRoute;
+					else if (checkRoute.m_copx != dest)
+						continue;
 				}
 				else if (!checkRoute.isValidForDepDestPair(origin, dest))
 				{
@@ -557,7 +561,7 @@ public:
 		try {
 
 			std::vector<std::string> espoints;
-			for (int i = 1; i <= length - 2; i++)
+			for (int i = 1; i <= length - 1; i++) //was length -2
 			{
 				std::string airway = Route.GetPointAirwayName(i);
 				std::string airwaynext = Route.GetPointAirwayName(i + 1);

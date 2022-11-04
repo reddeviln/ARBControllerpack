@@ -1977,7 +1977,7 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 			{
 				if (std::find(elem.notforDepFrom.begin(), elem.notforDepFrom.end(), dep) != elem.notforDepFrom.end())
 					continue;
-				message += elem.routingATS;
+				message = elem.routingATS;
 				DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
 				
 			}
@@ -2039,11 +2039,12 @@ inline void CUAEController::OnFunctionCall(int FunctionId, const char * sItemStr
 					return;
 		}
 		message = "Flights from " + copn + " shall route via one of the options below in " + *data.rbegin() + " FIR: ";
+		DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
 		for (auto& elem : routesDEP)
 		{
 			if (std::find(elem.onlyForArrivalInto.begin(), elem.onlyForArrivalInto.end(), dest) != elem.onlyForArrivalInto.end())
 				continue;
-			message += elem.routingATS;
+			message = elem.routingATS;
 			DisplayUserMessage(handler.c_str(), "ARBControllerPack", message.c_str(), true, true, true, true, false);
 			return;
 		}

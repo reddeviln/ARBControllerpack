@@ -158,6 +158,11 @@ public:
 			m_type = 2;
 			break;
 		}
+		case 'I':
+		{
+			m_type = 3;
+			break;
+		}
 		}
 		routingATS = routing;
 		evenodd = even;
@@ -188,6 +193,7 @@ public:
 	{
 		if (m_type == 1 && m_copx != dest) return false;
 		if (m_type == 2 && m_copn != dep) return false;
+		if (m_type == 3 && (m_copn != dep || m_copx != dest)) return false;
 		if (onlyForArrivalInto.empty() && notForArrivalInto.empty() && onlyforDepFrom.empty() && notforDepFrom.empty())
 			return true;
 		auto onlyArrival = std::find(onlyForArrivalInto.begin(), onlyForArrivalInto.end(), dest);
@@ -334,14 +340,15 @@ public:
 			auto mismatch = std::mismatch(PointsRoute.begin(), PointsRoute.end(), copn);
 			if (mismatch.first == PointsRoute.end())
 			{
-				if (departureThisFIR && checkRoute.m_type != 2)
+
+				/*if (departureThisFIR && checkRoute.m_type != 2)
 				{
 					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
 					logstring += ". However it was not classified as a departure routing in this FIR.";
 					LOG_F(INFO, logstring.c_str());
 					continue;
 				}
-				else if (arrivalThisFIR && checkRoute.m_type != 1)
+				else if (arrivalThisFIR && checkRoute.m_type != 1 )
 				{
 					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
 					logstring += ". However it was not classified as a arrival routing in this FIR.";
@@ -356,8 +363,15 @@ public:
 						return checkRoute;
 					else if (checkRoute.m_copx != dest)
 						continue;
+				}*/
+				if (arrivalThisFIR && departureThisFIR && checkRoute.m_type != 3)
+				{
+					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
+					logstring += ". However it was not classified as a domestic routing in this FIR.";
+					LOG_F(INFO, logstring.c_str());
+					continue;
 				}
-				else if (!checkRoute.isValidForDepDestPair(origin, dest))
+				if (!checkRoute.isValidForDepDestPair(origin, dest))
 				{
 					std::string logstring = "Found matching route " + checkRoute.routingATS + " for " + fp.GetCallsign() + " in " + this->ICAOabb;
 					logstring += ". However it was not valid for this departure/destination pairing.";
@@ -565,7 +579,7 @@ public:
 			{
 				std::string airway = Route.GetPointAirwayName(i);
 				std::string airwaynext = Route.GetPointAirwayName(i + 1);
-				if (std::regex_search(airway, m, sid) && (airway == airwaynext || airwaynext.empty()))
+				if (std::regex_search(airway, m, sid) && airway == airwaynext ) //|| airwaynext.empty()
 					continue;
 				espoints.push_back(Route.GetPointName(i));
 				airwaylast = airway;
